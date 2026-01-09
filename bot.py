@@ -38,6 +38,5 @@ async def main():
     # Запускаем polling
     await dp.start_polling(bot)
 
-# Точка входа
 if __name__ == "__main__":
     asyncio.run(main())
