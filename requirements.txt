@@ -1,2 +1,4 @@
 fastapi[standart]
 aiogram
+aiosqlite
+sqlalchemy
