@@ -30,8 +30,7 @@ class AppointmentModel(Base):
     user_id: Mapped[float] = mapped_column(ForeignKey("users.id"))
     master_id: Mapped[float] = mapped_column(ForeignKey("masters.id"))
     date: Mapped[date]
-    time: Mapped[str]
-    price: Mapped[int]
+    time: Mapped[date]
     service_id: Mapped[int]
 
     @classmethod
@@ -58,20 +57,19 @@ class OrganizationModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     address: Mapped[str]
     unique_code: Mapped[int]
-    #TODO подумать над таблицей организаций
 
 class MasterModel(Base):
     __tablename__ = "masters"
 
     id: Mapped[float] = mapped_column(primary_key=True)
-    organization_id: Mapped[int] = mapped_column(ForeignKey("organization.id"))
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     photo_path: Mapped[str]
     name: Mapped[str]
     working_day_start: Mapped[date]
     working_day_end: Mapped[date]
 
     @classmethod
-    def get_master_by_id(cls, session: SessionDep, id):
+    async def get_master_by_id(cls, session: SessionDep, id):
         master = session.get(cls, id)
         if master:
             return master
@@ -81,11 +79,19 @@ class UserModel(Base):
 
     id: Mapped[float] = mapped_column(primary_key=True)
     name: Mapped[str]
-
+    unique_code: Mapped[int]
 class ServiceModel(Base):
     __tablename__ = "services"
 
     id: Mapped[float] = mapped_column(primary_key=True)
     name: Mapped[str]
     approximate_time: Mapped[int]
-# TODO сделать валидацию
+    category: Mapped[str]
+
+class PriceModel(Base):
+    __tablename__ = "prices"
+
+    id: Mapped[float] = mapped_column(primary_key=True)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    price: Mapped[int]
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
