@@ -67,8 +67,8 @@ class MasterModel(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     photo_path: Mapped[str]
     name: Mapped[str]
-    working_day_start: Mapped[time]
-    working_day_end: Mapped[time]
+    working_day_start: Mapped[datetime.time]
+    working_day_end: Mapped[datetime.time]
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id):
