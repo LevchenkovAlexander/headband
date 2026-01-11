@@ -1,10 +1,11 @@
+import logging
 from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy import ForeignKey
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from datetime import date
+from datetime import date, time
 
 engine = create_async_engine('postgresql+asyncpg://username:password@localhost/dbname')
 
@@ -19,6 +20,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 async def setup_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        logging.info("database created")
 
 class Base(DeclarativeBase):
     pass
@@ -30,7 +32,7 @@ class AppointmentModel(Base):
     user_id: Mapped[float] = mapped_column(ForeignKey("users.id"))
     master_id: Mapped[float] = mapped_column(ForeignKey("masters.id"))
     date: Mapped[date]
-    time: Mapped[date]
+    time: Mapped[time]
     service_id: Mapped[int]
 
     @classmethod
@@ -65,8 +67,8 @@ class MasterModel(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     photo_path: Mapped[str]
     name: Mapped[str]
-    working_day_start: Mapped[date]
-    working_day_end: Mapped[date]
+    working_day_start: Mapped[time]
+    working_day_end: Mapped[time]
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id):
