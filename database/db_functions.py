@@ -4,7 +4,6 @@ import re
 from pydantic import BaseModel, validator, field_validator
 
 
-#Pydantic schemas
 class AppointmentSchema(BaseModel):
     user_id: float
     master_id: float
