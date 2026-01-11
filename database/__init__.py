@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import ForeignKey
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from datetime import date
+import datetime
 
 engine = create_async_engine('postgresql+asyncpg://username:password@localhost/dbname')
 
@@ -29,8 +29,8 @@ class AppointmentModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[float] = mapped_column(ForeignKey("users.id"))
     master_id: Mapped[float] = mapped_column(ForeignKey("masters.id"))
-    date: Mapped[date]
-    time: Mapped[date]
+    date: Mapped[datetime.date]
+    time: Mapped[datetime.time]
     service_id: Mapped[int]
 
     @classmethod
