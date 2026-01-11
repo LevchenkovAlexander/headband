@@ -3,8 +3,6 @@ from typing import Optional
 import re
 from pydantic import BaseModel, validator, field_validator
 
-from headband.database import MasterModel
-
 
 #Pydantic schemas
 class AppointmentSchema(BaseModel):
@@ -13,8 +11,7 @@ class AppointmentSchema(BaseModel):
     date: str
     time: str
     price: int
-    service_id: 1 | 2 | 3
-    style: Optional[str] = None
+    service_id: int
 
     @field_validator('date')
     @classmethod

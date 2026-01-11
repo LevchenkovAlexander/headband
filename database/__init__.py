@@ -33,7 +33,6 @@ class AppointmentModel(Base):
     time: Mapped[str]
     price: Mapped[int]
     service_id: Mapped[int]
-    style: Mapped[str]
 
     @classmethod
     def create(cls, session: SessionDep, **kwargs):
@@ -83,5 +82,10 @@ class UserModel(Base):
     id: Mapped[float] = mapped_column(primary_key=True)
     name: Mapped[str]
 
+class ServiceModel(Base):
+    __tablename__ = "services"
 
+    id: Mapped[float] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    approximate_time: Mapped[int]
 # TODO сделать валидацию
