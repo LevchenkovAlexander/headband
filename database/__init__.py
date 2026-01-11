@@ -35,7 +35,7 @@ class AppointmentModel(Base):
     service_id: Mapped[int]
 
     @classmethod
-    def create(cls, session: SessionDep, **kwargs):
+    async def create(cls, session: SessionDep, **kwargs):
         appointment = cls(**kwargs)
         session.add(appointment)
         await session.commit()
@@ -43,7 +43,7 @@ class AppointmentModel(Base):
         return appointment
 
     @classmethod
-    def delete(cls, session: SessionDep, id):
+    async def delete(cls, session: SessionDep, id):
         appointment = session.get(cls, id)
         if appointment:
             await session.delete(appointment)

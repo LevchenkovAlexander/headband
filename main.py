@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
@@ -8,7 +9,10 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from fastapi import FastAPI
 
-from config import BOT_TOKEN, WEB_APP_URL
+import database
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,4 +33,5 @@ async def main():
 
 if __name__ == "main":
     asyncio.run(main())
+
 
