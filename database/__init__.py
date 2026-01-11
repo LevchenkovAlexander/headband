@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import Depends
@@ -19,6 +20,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 async def setup_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        logging.info("database created")
 
 class Base(DeclarativeBase):
     pass
@@ -65,8 +67,8 @@ class MasterModel(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     photo_path: Mapped[str]
     name: Mapped[str]
-    working_day_start: Mapped[date]
-    working_day_end: Mapped[date]
+    working_day_start: Mapped[time]
+    working_day_end: Mapped[time]
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id):
