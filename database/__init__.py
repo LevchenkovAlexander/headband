@@ -1,13 +1,14 @@
 import logging
-from typing import Annotated
+from typing import Annotated, List
 
 from fastapi import Depends
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 import datetime
+from sqlalchemy import inspect
 
-engine = create_async_engine('postgresql+asyncpg://username:password@localhost/dbname')
+engine = create_async_engine('postgresql+asyncpg://postgres:1234@localhost/headband')
 
 session = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -18,9 +19,21 @@ async def get_session():
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 async def setup_database():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        logging.info("database created")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+            tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
+            logging.info(f"Таблицы в базе данных: {tables}")
+
+            return True
+    except Exception as e:
+        logging.error(f"Ошибка создания БД: {e}")
+        return False
+
+async def close_connection():
+    if engine:
+        await engine.dispose()
 
 class Base(DeclarativeBase):
     pass
@@ -29,8 +42,8 @@ class AppointmentModel(Base):
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[float] = mapped_column(ForeignKey("users.id"))
-    master_id: Mapped[float] = mapped_column(ForeignKey("masters.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     date: Mapped[datetime.date]
     time: Mapped[datetime.time]
     service_id: Mapped[int]
@@ -42,6 +55,17 @@ class AppointmentModel(Base):
         await session.commit()
         await session.refresh(appointment)
         return appointment
+    @classmethod
+    async def get_by_master_and_date(cls, session: SessionDep, master_id: int, date: datetime.date) -> List['AppointmentModel']:
+        query = select(cls).where(
+            cls.master_id == master_id,
+            cls.date == date
+        ).order_by(cls.time)
+
+        result = await session.execute(query)
+        appointments = result.scalars().all()
+
+        return list(appointments)  # Возвращаем список объектов
 
     @classmethod
     async def delete(cls, session: SessionDep, id):
@@ -63,37 +87,49 @@ class OrganizationModel(Base):
 class MasterModel(Base):
     __tablename__ = "masters"
 
-    id: Mapped[float] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     photo_path: Mapped[str]
     name: Mapped[str]
     working_day_start: Mapped[datetime.time]
     working_day_end: Mapped[datetime.time]
+    day_off: Mapped[int]
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id):
-        master = session.get(cls, id)
-        if master:
-            return master
-        raise ValueError("There is no such master ID")
+        query = select(cls).where(
+            cls.id == id
+        )
+        result = await session.execute(query)
+        master = result.scalar_one_or_none()
+        return master
 class UserModel(Base):
     __tablename__ = "users"
 
-    id: Mapped[float] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
     unique_code: Mapped[int]
 class ServiceModel(Base):
     __tablename__ = "services"
 
-    id: Mapped[float] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
     approximate_time: Mapped[int]
     category: Mapped[str]
 
+    @classmethod
+    async def get_service_by_id(cls, session: SessionDep, id):
+        query = select(cls).where(
+            cls.id == id
+        )
+        result = await session.execute(query)
+        service = result.scalar_one_or_none()
+        return service
+
 class PriceModel(Base):
     __tablename__ = "prices"
 
-    id: Mapped[float] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     price: Mapped[int]
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
