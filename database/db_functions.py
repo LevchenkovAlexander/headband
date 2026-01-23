@@ -65,3 +65,11 @@ async def get_possible_start_time(master_id, app_date, service_id):
             return None, "no time for app"
         else:
             return possible_starts, "success"
+
+async def create_appointment(appointment):
+    status = AppointmentModel.create(appointment=appointment)
+    return status
+
+async def cancel_appointment(appointment_id):
+    status = AppointmentModel.delete(id=appointment_id)
+    return status

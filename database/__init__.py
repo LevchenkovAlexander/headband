@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Annotated, List
 
 from fastapi import Depends
-from sqlalchemy import ForeignKey, select
+from sqlalchemy import ForeignKey, select, Column, Integer, Identity
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 import datetime
@@ -43,19 +43,18 @@ class AppointmentModel(Base):
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    master_id = Column(Integer, ForeignKey("masters.id"))
     date: Mapped[datetime.date]
     time: Mapped[datetime.time]
-    service_id: Mapped[int]
+    service_id = Column(Integer, ForeignKey("services.id"))
 
     @classmethod
-    async def create(cls, session: SessionDep, **kwargs):
-        appointment = cls(**kwargs)
+    async def create(cls, session: SessionDep, appointment):
         session.add(appointment)
         await session.commit()
         await session.refresh(appointment)
-        return appointment
+        return "success"
     @classmethod
     async def get_by_master_and_date(cls, session: SessionDep, master_id: int, date: datetime.date) -> List['AppointmentModel']:
         query = select(cls).where(
@@ -74,8 +73,8 @@ class AppointmentModel(Base):
         if appointment:
             await session.delete(appointment)
             await session.commit()
-            return True
-        return False
+            return "success"
+        return "no such id"
 
 
 class OrganizationModel(Base):
