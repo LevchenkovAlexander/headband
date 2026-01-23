@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 from typing import Annotated, List
 
 from fastapi import Depends
@@ -93,7 +94,7 @@ class MasterModel(Base):
     name: Mapped[str]
     working_day_start: Mapped[datetime.time]
     working_day_end: Mapped[datetime.time]
-    day_off: Mapped[int]
+    day_off: Mapped[str]
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id):
@@ -133,3 +134,12 @@ class PriceModel(Base):
     master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     price: Mapped[int]
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
+
+class Week(Enum):
+    MONDAY = 1
+    TUESDAY = 2
+    WEDNESDAY = 3
+    THURSDAY = 4
+    FRIDAY = 5
+    SATURDAY = 6
+    SUNDAY = 7
