@@ -15,7 +15,7 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from fastapi import FastAPI
 
 from headband.database import db_functions
-from headband.database.data_transfer_objects import AppointmentTO
+from headband.database.data_transfer_objects import AppointmentTO, MasterTO
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
@@ -78,8 +78,9 @@ async def get_week_appointments(appointment: AppointmentTO):
     master_id = appointment.master_id
     return db_functions.get_week_timetable(master_id, date)
 
-
-
+@app.patch("/update_profile_info/{master}", tags=["Master"])
+async def update_profile_info(master: MasterTO):
+    return db_functions.update_master(master)
 
 
 async def main():

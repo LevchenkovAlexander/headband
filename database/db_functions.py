@@ -1,5 +1,7 @@
-from headband.database import AppointmentModel, MasterModel, ServiceModel, Week
+from headband.database import AppointmentModel, MasterModel, ServiceModel, Week, SessionDep
 from datetime import time, timedelta, datetime
+
+from headband.database.db_validator import MasterUpdate
 
 
 def _int_minutes_to_time(minutes: int) -> time:
@@ -44,7 +46,7 @@ async def get_possible_start_time(appointmentTO):
     app_date = appointmentTO.date
     service_id = appointmentTO.service_id
 
-    master = await MasterModel.get_master_by_id(id=master_id)
+    master = await MasterModel.get_master_by_id(session = SessionDep, id=master_id)
     days_off = master.day_off
     weekday_name = _get_weekday_caps(app_date)
     weekday = Week[weekday_name].value
@@ -53,7 +55,7 @@ async def get_possible_start_time(appointmentTO):
         return None, "day off"
 
     else:
-        appointments = await AppointmentModel.get_by_master_and_date(master_id=master_id, date=app_date)
+        appointments = await AppointmentModel.get_by_master_and_date(session = SessionDep, master_id=master_id, date=app_date)
 
         day_start = master.working_day_start
         day_end = master.working_day_end
@@ -66,7 +68,7 @@ async def get_possible_start_time(appointmentTO):
             end_time.append(_time_to_timedelta(appointment.end_time))
         start_time.append(_time_to_timedelta(day_end))
 
-        service = await ServiceModel.get_service_by_id(id=service_id)
+        service = await ServiceModel.get_service_by_id(session = SessionDep, id=service_id)
         appointment_approx_time = service.approximate_time
         possible_time_for_start = 0
         possible_starts = []
@@ -85,7 +87,7 @@ async def get_possible_start_time(appointmentTO):
             return possible_starts, "success"
 
 async def get_appointments_by_date(master_id, date):
-    appointments = await AppointmentModel.get_by_master_and_date(master_id=master_id, date=date)
+    appointments = await AppointmentModel.get_by_master_and_date(session = SessionDep, master_id=master_id, date=date)
     if appointments:
         return appointments, len(appointments), "success"
     return None, 0, "no appointments today"
@@ -100,7 +102,7 @@ async def get_week_timetable(master_id, date):
 
 async def create_appointment(appointmentTO):
 
-    service = await ServiceModel.get_service_by_id(id=appointmentTO.service_id)
+    service = await ServiceModel.get_service_by_id(session = SessionDep, id=appointmentTO.service_id)
     appointment_approx_time = service.approximate_time
     appointment = AppointmentModel(user_id = appointmentTO.user_id,
                                    master_id = appointmentTO.master_id,
@@ -108,10 +110,19 @@ async def create_appointment(appointmentTO):
                                    start_time = appointmentTO.start_time,
                                    end_time = _timedelta_to_time(_time_to_timedelta(appointmentTO.start_time)+_time_to_timedelta(_int_minutes_to_time(appointment_approx_time))),
                                    service_id = appointmentTO.service_id)
-    status = AppointmentModel.create(appointment)
+    status = AppointmentModel.create(session = SessionDep, appointment = appointment)
     return status
 
+async def update_master(masterTO):
+    update_data = MasterUpdate(photo_path = masterTO.photo_path,
+                               name = masterTO.name,
+                               working_day_start = masterTO.working_day_start,
+                               working_day_end = masterTO.working_day_end,
+                               day_off = masterTO.day_off).model_dump(exclude_unset=True)
+    master = MasterModel.update_master(session=SessionDep, id = masterTO.master_id, update_data=update_data)
+    return master, "success"
+
 async def cancel_appointment(appointment_id):
-    status = AppointmentModel.delete(id=appointment_id)
+    status = AppointmentModel.delete(session = SessionDep, id=appointment_id)
     return status
 

@@ -33,3 +33,9 @@ class AppointmentSchema(BaseModel):
 
         return v
 
+class MasterUpdate(BaseModel):
+    photo_path: Optional[str] = None
+    name: Optional[str] = None
+    working_day_start: Optional[datetime.time] = None
+    working_day_end: Optional[datetime.time] = None
+    day_off: Optional[str] = None

@@ -1,9 +1,9 @@
 import logging
 from enum import Enum
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 from fastapi import Depends
-from sqlalchemy import ForeignKey, select, Column, Integer, Identity
+from sqlalchemy import ForeignKey, select, Column, Integer, Identity, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 import datetime
@@ -61,7 +61,7 @@ class AppointmentModel(Base):
         query = select(cls).where(
             cls.master_id == master_id,
             cls.date == date
-        ).order_by(cls.time)
+        ).order_by(cls.start_time)
 
         result = await session.execute(query)
         appointments = result.scalars().all()
@@ -69,7 +69,7 @@ class AppointmentModel(Base):
         return list(appointments)  # Возвращаем список объектов
 
     @classmethod
-    async def delete(cls, session: SessionDep, id):
+    async def delete(cls, session: SessionDep, id: int):
         appointment = session.get(cls, id)
         if appointment:
             await session.delete(appointment)
@@ -85,6 +85,8 @@ class OrganizationModel(Base):
     address: Mapped[str]
     unique_code: Mapped[int]
 
+
+
 class MasterModel(Base):
     __tablename__ = "masters"
 
@@ -97,13 +99,27 @@ class MasterModel(Base):
     day_off: Mapped[str]
 
     @classmethod
-    async def get_master_by_id(cls, session: SessionDep, id):
+    async def get_master_by_id(cls, session: SessionDep, id: int):
         query = select(cls).where(
             cls.id == id
         )
         result = await session.execute(query)
         master = result.scalar_one_or_none()
         return master
+
+    @classmethod
+    async def update_master(cls, session: SessionDep, id: int, update_data: dict):
+        query = (
+            update(cls)
+            .where(cls.id == id)
+            .values(**update_data)
+            .returning(cls)
+        )
+        result = await session.execute(query)
+        updated_master = result.scalar_one_or_none()
+        await session.commit()
+        return updated_master
+
 class UserModel(Base):
     __tablename__ = "users"
 
@@ -119,7 +135,7 @@ class ServiceModel(Base):
     category: Mapped[str]
 
     @classmethod
-    async def get_service_by_id(cls, session: SessionDep, id):
+    async def get_service_by_id(cls, session: SessionDep, id: int):
         query = select(cls).where(
             cls.id == id
         )
