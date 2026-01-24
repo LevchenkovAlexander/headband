@@ -40,11 +40,7 @@ def _get_weekday_caps(date_obj=None):
         date_obj = datetime.now()
     return date_obj.strftime('%A').upper()
 
-async def get_possible_start_time(appointmentTO):
-
-    master_id = appointmentTO.master_id
-    app_date = appointmentTO.date
-    service_id = appointmentTO.service_id
+async def get_possible_start_time(master_id, date, service_id):
 
     master = await MasterModel.get_master_by_id(session = SessionDep, id=master_id)
     days_off = master.day_off
@@ -113,13 +109,8 @@ async def create_appointment(appointmentTO):
     status = AppointmentModel.create(session = SessionDep, appointment = appointment)
     return status
 
-async def update_master(masterTO):
-    update_data = MasterUpdate(photo_path = masterTO.photo_path,
-                               name = masterTO.name,
-                               working_day_start = masterTO.working_day_start,
-                               working_day_end = masterTO.working_day_end,
-                               day_off = masterTO.day_off).model_dump(exclude_unset=True)
-    master = MasterModel.update_master(session=SessionDep, id = masterTO.master_id, update_data=update_data)
+async def update_master(master_id, update_data):
+    master = MasterModel.update_master(session=SessionDep, id = master_id, update_data=update_data)
     return master, "success"
 
 async def cancel_appointment(appointment_id):

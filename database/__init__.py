@@ -6,7 +6,7 @@ from fastapi import Depends
 from sqlalchemy import ForeignKey, select, Column, Integer, Identity, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-import datetime
+from datetime import time, datetime, date
 from sqlalchemy import inspect
 
 engine = create_async_engine('postgresql+asyncpg://postgres:1234@localhost/headband')
@@ -45,9 +45,9 @@ class AppointmentModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     master_id = Column(Integer, ForeignKey("masters.id"))
-    date: Mapped[datetime.date]
-    start_time: Mapped[datetime.time]
-    end_time: Mapped[datetime.time]
+    date: Mapped[date]
+    start_time: Mapped[time]
+    end_time: Mapped[time]
     service_id = Column(Integer, ForeignKey("services.id"))
 
     @classmethod
@@ -94,8 +94,8 @@ class MasterModel(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     photo_path: Mapped[str]
     name: Mapped[str]
-    working_day_start: Mapped[datetime.time]
-    working_day_end: Mapped[datetime.time]
+    working_day_start: Mapped[time]
+    working_day_end: Mapped[time]
     day_off: Mapped[str]
 
     @classmethod
