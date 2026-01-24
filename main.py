@@ -1,3 +1,4 @@
+import datetime
 import logging
 import asyncio
 import os
@@ -36,26 +37,50 @@ async def handle_start(message: Message):
 
 logging.basicConfig(level=logging.INFO)
 
-@app.post("/create_appointment/{appoin}", tags=["Users"])
-async def create_appointment(appoin: AppointmentTO):
-    status = db_functions.create_appointment(appoin)
+@app.post("/create_appointment/{appointment}", tags=["User"])
+async def create_appointment(appointment: AppointmentTO):
+    status = db_functions.create_appointment(appointment)
     return {"status": status}
 
-@app.get("/check_appointments/{appoin}", tags=["Users"])
-async def get_list_of_possible_appointments(appoin: AppointmentTO):
-    master_id = appoin.master_id
-    date = appoin.date
-    service_id = appoin.service_id
-    poss_start, status = db_functions.get_possible_start_time(master_id=master_id, app_date=date, service_id=service_id)
+@app.get("/check_appointments/{appointment}", tags=["User"])
+async def get_list_of_possible_appointments(appointment: AppointmentTO):
+    poss_start, status = db_functions.get_possible_start_time(appointment)
     if poss_start:
         return {"status": status, "times": poss_start}
     else:
         return {"status": status}
 
-@app.delete("/cancel_appointment/{appointment_id}", tags=["Users"])
+@app.delete("/cancel_appointment/{appointment_id}", tags=["User"])
 async def cancel_appointment(id: int):
-    status = db_functions.cancel_appointment(appointment_id=id)
+    status = db_functions.cancel_appointment(id)
     return {"status": status}
+
+@app.get("/todays_timetable/{master_id}", tags=["Master"])
+async def get_today_appointments(id: int):
+    date = datetime.date.today()
+    appointments, num, status = db_functions.get_appointments_by_date(id, date)
+    if num!=0:
+        return appointments, status
+    return status
+
+@app.get("/date_timetable/{appointment}", tags=["Master"])
+async def get_date_appointments(appointment: AppointmentTO):
+    date = appointment.date
+    master_id = appointment.master_id
+    appointments, num, status = db_functions.get_appointments_by_date(master_id, date)
+    if num!=0:
+        return appointments, status
+    return status
+
+@app.get("/week_timetable/{appointment}", tags=["Master"])
+async def get_week_appointments(appointment: AppointmentTO):
+    date = appointment.date
+    master_id = appointment.master_id
+    return db_functions.get_week_timetable(master_id, date)
+
+
+
+
 
 async def main():
     try:

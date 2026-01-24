@@ -46,7 +46,8 @@ class AppointmentModel(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     master_id = Column(Integer, ForeignKey("masters.id"))
     date: Mapped[datetime.date]
-    time: Mapped[datetime.time]
+    start_time: Mapped[datetime.time]
+    end_time: Mapped[datetime.time]
     service_id = Column(Integer, ForeignKey("services.id"))
 
     @classmethod
