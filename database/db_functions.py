@@ -1,7 +1,7 @@
 from headband.database import AppointmentModel, MasterModel, ServiceModel, Week, SessionDep
 from datetime import time, timedelta, datetime
 
-from headband.database.db_validator import MasterUpdate
+from headband.database.requests import AppointmentCreateRequest
 
 
 def _int_minutes_to_time(minutes: int) -> time:
@@ -44,14 +44,14 @@ async def get_possible_start_time(master_id, date, service_id):
 
     master = await MasterModel.get_master_by_id(session = SessionDep, id=master_id)
     days_off = master.day_off
-    weekday_name = _get_weekday_caps(app_date)
+    weekday_name = _get_weekday_caps(date)
     weekday = Week[weekday_name].value
 
     if weekday in days_off:
         return None, "day off"
 
     else:
-        appointments = await AppointmentModel.get_by_master_and_date(session = SessionDep, master_id=master_id, date=app_date)
+        appointments = await AppointmentModel.get_by_master_and_date(session = SessionDep, master_id=master_id, date=date)
 
         day_start = master.working_day_start
         day_end = master.working_day_end
@@ -96,17 +96,13 @@ async def get_week_timetable(master_id, date):
         week_appointments.append(appointments)
     return week_appointments, "success"
 
-async def create_appointment(appointmentTO):
+async def create_appointment(appointment_request: AppointmentCreateRequest):
 
-    service = await ServiceModel.get_service_by_id(session = SessionDep, id=appointmentTO.service_id)
+    service = await ServiceModel.get_service_by_id(session = SessionDep, id=appointment_request.service_id)
     appointment_approx_time = service.approximate_time
-    appointment = AppointmentModel(user_id = appointmentTO.user_id,
-                                   master_id = appointmentTO.master_id,
-                                   date = appointmentTO.date,
-                                   start_time = appointmentTO.start_time,
-                                   end_time = _timedelta_to_time(_time_to_timedelta(appointmentTO.start_time)+_time_to_timedelta(_int_minutes_to_time(appointment_approx_time))),
-                                   service_id = appointmentTO.service_id)
-    status = AppointmentModel.create(session = SessionDep, appointment = appointment)
+    appointment_dict = appointment_request.model_dump()
+    appointment_dict["end_time"] = _timedelta_to_time(_time_to_timedelta(appointment_dict["start_time"])+appointment_approx_time)
+    status = AppointmentModel.create(session = SessionDep, data=appointment_dict)
     return status
 
 async def update_master(master_id, update_data):

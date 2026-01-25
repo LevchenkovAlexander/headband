@@ -18,5 +18,5 @@ class PossibleTimesResponse(BaseModel):
 
 class WeekTimetableResponse(BaseModel):
     status: str
-    week_appointments: Dict[str, Any]
+    week_appointments: List[List[Dict[str, Any]]] = []
 

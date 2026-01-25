@@ -6,7 +6,7 @@ from fastapi import Depends
 from sqlalchemy import ForeignKey, select, Column, Integer, Identity, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from datetime import time, datetime, date
+from datetime import time, datetime, date, timedelta
 from sqlalchemy import inspect
 
 engine = create_async_engine('postgresql+asyncpg://postgres:1234@localhost/headband')
@@ -51,7 +51,8 @@ class AppointmentModel(Base):
     service_id = Column(Integer, ForeignKey("services.id"))
 
     @classmethod
-    async def create(cls, session: SessionDep, appointment):
+    async def create(cls, session: SessionDep, data: dict):
+        appointment = cls(**data)
         session.add(appointment)
         await session.commit()
         await session.refresh(appointment)
@@ -131,7 +132,7 @@ class ServiceModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
-    approximate_time: Mapped[int]
+    approximate_time: Mapped[timedelta]
     category: Mapped[str]
 
     @classmethod

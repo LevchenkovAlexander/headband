@@ -15,7 +15,7 @@ from aiogram.types import Message
 from fastapi import FastAPI
 
 from headband.database import db_functions
-from headband.database.db_validator import MasterUpdate, AppointmentTO
+from headband.database.requests import MasterUpdateRequest, AppointmentCreateRequest
 from headband.database.responses import PossibleTimesResponse, StatusResponse, \
     AppointmentListResponse, WeekTimetableResponse
 
@@ -40,17 +40,13 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 
 @app.post("/appointments/", tags=["User"], response_model=StatusResponse)
-async def create_appointment(appointment: AppointmentTO):
+async def create_appointment(appointment: AppointmentCreateRequest):
     status = await db_functions.create_appointment(appointment)
     return {"status": status}
 
 
 @app.get("/possible-times/", tags=["User"], response_model=PossibleTimesResponse)
-async def get_possible_start_times(
-    master_id: int,
-    date: date,
-    service_id: int):
-
+async def get_possible_start_times(master_id: int, date: date, service_id: int):
     poss_start, status = await db_functions.get_possible_start_time(
         master_id=master_id,
         date=date,
@@ -62,8 +58,7 @@ async def get_possible_start_times(
 
 
 @app.delete("/appointments/{appointment_id}", tags=["User"], response_model=StatusResponse)
-async def cancel_appointment(
-    appointment_id: int ):
+async def cancel_appointment(appointment_id: int):
     status = await db_functions.cancel_appointment(appointment_id)
     return {"status": status}
 
@@ -91,10 +86,8 @@ async def get_appointments_by_date(
     }
 
 
-@app.get("/masters/{master_id}/week/", tags=["Master"], response_model=WeekTimetableResponse)
-async def get_week_timetable(
-    master_id: int ,
-    start_date: date):
+@app.get("/masters/{master_id}/week/{date_str}", tags=["Master"], response_model=WeekTimetableResponse)
+async def get_week_timetable(master_id: int, start_date: date):
     week_appointments, status = await db_functions.get_week_timetable(master_id, start_date)
     return {
         "status": status,
@@ -105,7 +98,7 @@ async def get_week_timetable(
 @app.patch("/masters/{master_id}/profile", tags=["Master"], response_model=Dict[str, Any])
 async def update_master_profile(
     master_id: int,
-    update_data: MasterUpdate):
+    update_data: MasterUpdateRequest):
     updated_master, status = await db_functions.update_master(
         master_id=master_id,
         update_data=update_data
