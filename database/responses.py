@@ -7,16 +7,13 @@ class StatusResponse(BaseModel):
     status: str
 
 
-class AppointmentListResponse(BaseModel):
-    status: str
+class AppointmentListResponse(StatusResponse):
     count: int = 0
     appointments: List[Dict[str, Any]] = []
 
-class PossibleTimesResponse(BaseModel):
-    status: str
+class PossibleTimesResponse(StatusResponse):
     times: List[str] = []
 
-class WeekTimetableResponse(BaseModel):
-    status: str
+class WeekTimetableResponse(StatusResponse):
     week_appointments: List[List[Dict[str, Any]]] = []
 
