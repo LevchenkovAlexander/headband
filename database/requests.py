@@ -14,7 +14,27 @@ class AppointmentCreateRequest(BaseModel):
 
 class MasterUpdateRequest(BaseModel):
     photo_path: Optional[str] = None
-    name: Optional[str] = None
+    full_name: Optional[str] = None
     working_day_start: Optional[time] = None
     working_day_end: Optional[time] = None
     day_off: Optional[str] = None
+class MasterCreateRequest(BaseModel):
+    id: int
+    organization_id: int
+    username: Optional[str] = "no info"
+    photo_path: Optional[str] = "no info"
+    full_name: Optional[str] = "no info"
+    working_day_start: Optional[time]
+    working_day_end: Optional[time]
+    day_off: Optional[str]
+
+class UserCreateRequest(BaseModel):
+    id: int
+    organization_id: int
+    username: Optional[str] = None
+
+class OrganizationCreateRequest(BaseModel):
+    id: int
+    address: Optional[str] = "no info"
+    name: Optional[str] = "no info"
+    admin_id: int

@@ -1,9 +1,8 @@
 import logging
 from enum import Enum
-from typing import Annotated, List, Optional
+from typing import List
 
-from fastapi import Depends
-from sqlalchemy import ForeignKey, select, Column, Integer, Identity, update
+from sqlalchemy import ForeignKey, select, Column, Integer, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import time, datetime, date, timedelta
@@ -11,17 +10,20 @@ from sqlalchemy import inspect
 
 engine = create_async_engine('postgresql+asyncpg://postgres:1234@localhost/headband')
 
-session = async_sessionmaker(engine, expire_on_commit=False)
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
 
-async def get_session():
-    async with session as s:
-        yield s
 
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
+SessionDep = AsyncSession
+
 
 async def setup_database():
     try:
         async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
 
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
@@ -57,6 +59,7 @@ class AppointmentModel(Base):
         await session.commit()
         await session.refresh(appointment)
         return "success"
+
     @classmethod
     async def get_by_master_and_date(cls, session: SessionDep, master_id: int, date: datetime.date) -> List['AppointmentModel']:
         query = select(cls).where(
@@ -84,20 +87,42 @@ class OrganizationModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     address: Mapped[str]
-    unique_code: Mapped[int]
+    name: Mapped[str]
+    admin_id: Mapped[int]
 
-
+    @classmethod
+    async def check(cls, session: SessionDep, id: int):
+        organization = await session.get(cls, ident=id)
+        if organization is None:
+            return False
+        return True
+    @classmethod
+    async def create(cls, session: SessionDep, data: dict):
+        user = cls(**data)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return True
 
 class MasterModel(Base):
     __tablename__ = "masters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
+    username: Mapped[str]
     photo_path: Mapped[str]
-    name: Mapped[str]
+    full_name: Mapped[str]
     working_day_start: Mapped[time]
     working_day_end: Mapped[time]
     day_off: Mapped[str]
+
+    @classmethod
+    async def create(cls, session: SessionDep, data: dict):
+        master = cls(**data)
+        session.add(master)
+        await session.commit()
+        await session.refresh(master)
+        return True
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id: int):
@@ -125,8 +150,15 @@ class UserModel(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str]
-    unique_code: Mapped[int]
+    username: Mapped[str]
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
+    @classmethod
+    async def create(cls, session: SessionDep, data: dict):
+        user = cls(**data)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return True
 class ServiceModel(Base):
     __tablename__ = "services"
 
@@ -153,10 +185,10 @@ class PriceModel(Base):
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
 
 class Week(Enum):
-    MONDAY = 1
-    TUESDAY = 2
-    WEDNESDAY = 3
-    THURSDAY = 4
-    FRIDAY = 5
-    SATURDAY = 6
-    SUNDAY = 7
+    MONDAY = "1"
+    TUESDAY = "2"
+    WEDNESDAY = "3"
+    THURSDAY = "4"
+    FRIDAY = "5"
+    SATURDAY = "6"
+    SUNDAY = "7"
