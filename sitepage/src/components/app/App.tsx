@@ -1,5 +1,5 @@
 import "./App.scss";
-import Scissors from "../../assets/images/scissors.svg";
+import scissors from "../../assets/images/scissors.png";
 import ai from "../../assets/icons/AI.svg";
 import individ from "../../assets/icons/individ.svg";
 import master from "../../assets/icons/master.svg";
@@ -82,7 +82,7 @@ const App = () => {
         </div>
 
         <div className="start__right">
-          <img src={Scissors} alt="scissors" />
+          <img src={scissors} alt="scissors" />
         </div>
       </div>
 
