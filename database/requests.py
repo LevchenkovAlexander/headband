@@ -1,7 +1,8 @@
 from datetime import time, datetime, date
 from typing import Optional, Dict
 import re
-from pydantic import BaseModel, validator, field_validator
+from pydantic import BaseModel, validator, field_validator, EmailStr
+
 
 class AppointmentCreateRequest(BaseModel):
     id: Optional[int] = None
@@ -10,7 +11,7 @@ class AppointmentCreateRequest(BaseModel):
     date: date
     start_time: time
     end_time: time
-    service_id: int
+    price_id: int
 
 class MasterUpdateRequest(BaseModel):
     photo_path: Optional[str] = None
@@ -18,6 +19,7 @@ class MasterUpdateRequest(BaseModel):
     working_day_start: Optional[time] = None
     working_day_end: Optional[time] = None
     day_off: Optional[str] = None
+
 class MasterCreateRequest(BaseModel):
     id: int
     organization_id: int
@@ -34,7 +36,18 @@ class UserCreateRequest(BaseModel):
     username: Optional[str] = None
 
 class OrganizationCreateRequest(BaseModel):
-    id: int
-    address: Optional[str] = "no info"
-    name: Optional[str] = "no info"
+    name: str
+    address: str
+    description: Optional[str] = "no info"
+    categories: str
+    fixed_schedule: bool
+    fixed_prices: bool
+    day_start_template: time
+    day_end_template: time
+    day_off: str
     admin_id: int
+
+class AdminCreateRequest(BaseModel):
+    email: EmailStr
+    password: str
+    gtoken: Optional[str] = "no info"

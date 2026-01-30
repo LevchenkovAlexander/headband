@@ -50,7 +50,7 @@ class AppointmentModel(Base):
     date: Mapped[date]
     start_time: Mapped[time]
     end_time: Mapped[time]
-    service_id = Column(Integer, ForeignKey("services.id"))
+    price_id: Mapped[int] = mapped_column(ForeignKey("prices.id"))
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -81,18 +81,41 @@ class AppointmentModel(Base):
             return "success"
         return "no such id"
 
+class AdminModel(Base):
+    __tablename__ = "admins"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str]
+    password: Mapped[str]
+    gtoken: Mapped[str]
+
+    @classmethod
+    async def create(cls, session: SessionDep, data: dict):
+        admin = cls(**data)
+        session.add(admin)
+        await session.commit()
+        await session.refresh(admin)
+        return "success"
 
 class OrganizationModel(Base):
     __tablename__ = "organizations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    address: Mapped[str]
     name: Mapped[str]
-    admin_id: Mapped[int]
+    address: Mapped[str]
+    description: Mapped[str]
+    categories: Mapped[str]
+    fixed_schedule: Mapped[bool]
+    fixed_prices: Mapped[bool]
+    day_start_template: Mapped[time]
+    day_end_template: Mapped[time]
+    day_off: Mapped[str]
+    admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"))
+    unique_code: Mapped[str]
 
     @classmethod
-    async def check(cls, session: SessionDep, id: int):
-        organization = await session.get(cls, ident=id)
+    async def check(cls, session: SessionDep, unique_code: str):
+        organization = await session.get(cls, ident=unique_code)
         if organization is None:
             return False
         return True
@@ -102,7 +125,7 @@ class OrganizationModel(Base):
         session.add(user)
         await session.commit()
         await session.refresh(user)
-        return True
+        return "success"
 
 class MasterModel(Base):
     __tablename__ = "masters"
@@ -110,7 +133,6 @@ class MasterModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     username: Mapped[str]
-    photo_path: Mapped[str]
     full_name: Mapped[str]
     working_day_start: Mapped[time]
     working_day_end: Mapped[time]
@@ -159,30 +181,32 @@ class UserModel(Base):
         await session.commit()
         await session.refresh(user)
         return True
-class ServiceModel(Base):
-    __tablename__ = "services"
+
+class IndvidualPricesModel(Base):
+    __tablename__ = "indvidual_prices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str]
-    approximate_time: Mapped[timedelta]
-    category: Mapped[str]
-
-    @classmethod
-    async def get_service_by_id(cls, session: SessionDep, id: int):
-        query = select(cls).where(
-            cls.id == id
-        )
-        result = await session.execute(query)
-        service = result.scalar_one_or_none()
-        return service
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    price_id: Mapped[int] = mapped_column(ForeignKey("prices.id"))
+    new_price: Mapped[int]
 
 class PriceModel(Base):
     __tablename__ = "prices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    organization_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    name: Mapped[str]
     price: Mapped[int]
-    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
+    category: Mapped[int]
+    approximate_time: Mapped[time]
+    @classmethod
+    async def get_price_by_id(cls, session: SessionDep, id: int):
+        query = select(cls).where(
+            cls.id == id
+        )
+        result = await session.execute(query)
+        price = result.scalar_one_or_none()
+        return price
 
 class Week(Enum):
     MONDAY = "1"
@@ -192,3 +216,14 @@ class Week(Enum):
     FRIDAY = "5"
     SATURDAY = "6"
     SUNDAY = "7"
+
+class ServiceCategory(Enum):
+    HAIRSTYLE = "1"
+    COSMETOLOGY_SKINCARE = "2"
+    MANICURE_PEDICURE = "3"
+    BROWS_LASHES = "4"
+    DEPILATION_EPILATION = "5"
+    MAKEUP = "6"
+    FULLMAKEUP_CONSULTATIONS = "7"
+    SOLARIUM = "8"
+    OTHER = "9"

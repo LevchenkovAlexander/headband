@@ -6,6 +6,8 @@ from pydantic import BaseModel
 class StatusResponse(BaseModel):
     status: str
 
+class OrganizationResponse(StatusResponse):
+    tg_links: List[str]
 
 class AppointmentListResponse(StatusResponse):
     count: int = 0

@@ -12,7 +12,8 @@ from fastapi import FastAPI
 
 import database as db
 from headband.database import db_functions
-from headband.database.requests import MasterUpdateRequest, AppointmentCreateRequest, MasterCreateRequest
+from headband.database.requests import MasterUpdateRequest, AppointmentCreateRequest, MasterCreateRequest, \
+    AdminCreateRequest, OrganizationCreateRequest
 from headband.database.responses import PossibleTimesResponse, StatusResponse, \
     AppointmentListResponse, WeekTimetableResponse
 
@@ -30,7 +31,7 @@ async def start_bot():
 async def start_db():
     if await db.setup_database():
         logging.info("БД запущена")
-@asynccontextmanager
+"""@asynccontextmanager
 async def lifespan(app: FastAPI):
     global bot_task
     bot_task = asyncio.create_task(start_bot())
@@ -42,7 +43,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     logging.info("Бот остановлен")
-
+"""
 app = FastAPI()
 
 """команды бота"""
@@ -56,8 +57,6 @@ async def handle_start(message: Message):
         logging.info(f"no deeplink")
         answer = "нужна ссылка с параметрами, попросите у своей организации"
     await message.answer(answer)
-
-
 
 async def handle_deeplink(message: Message, args: str):
     user = message.from_user
@@ -85,6 +84,11 @@ async def handle_deeplink(message: Message, args: str):
 @app.post("/appointments/", tags=["User"], response_model=StatusResponse)
 async def create_appointment(appointment: AppointmentCreateRequest):
     status = await db_functions.create_appointment(appointment)
+    return {"status": status}
+
+@app.post("/admins/create_admin/", tags=["Admin"], response_model=StatusResponse)
+async def create_admin(adm_request: AdminCreateRequest):
+    status = await db_functions.create_admin(adm_request)
     return {"status": status}
 
 @app.get("/possible-times/", tags=["User"], response_model=PossibleTimesResponse)
@@ -143,11 +147,16 @@ async def update_master_profile(master_id: int, update_data: MasterUpdateRequest
         "master": updated_master.to_dict() if updated_master else None
     }
 
+@app.post("/admins/create_organization", tags=["Admin"], response_model=StatusResponse)
+async def create_organization(org_info: OrganizationCreateRequest):
+    status = await db_functions.create_organization(org_info)
+    return {"status": status}
+
 async def main():
     try:
         if await db.setup_database():
             logging.info("База данных инициализирована")
-        await start_bot()
+        #await start_bot()
         uvicorn.run(
             "main:app",
             reload=True
