@@ -1,36 +1,29 @@
 import logging
 import asyncio
-import os
-from contextlib import asynccontextmanager
+from multiprocessing import Process
 from typing import Dict, Any
 from datetime import date
 
 import uvicorn
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message
+
 from fastapi import FastAPI
 
-import database as db
-from headband.database import db_functions
-from headband.database.requests import MasterUpdateRequest, AppointmentCreateRequest, MasterCreateRequest, \
-    AdminCreateRequest, OrganizationCreateRequest
-from headband.database.responses import PossibleTimesResponse, StatusResponse, \
-    AppointmentListResponse, WeekTimetableResponse
-
-BOT_TOKEN = "6676444574:AAEr9TBoYWGlAGnChuD3OP14k0_dX7qGdhs"
-bot_task = None
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+from headband.backend import database as db
+from headband.backend.database import db_functions
+from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, AdminCreateRequest, OrganizationCreateRequest
+from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
+    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse
+from headband.backend.telegram_bot import BOT_URL, bot_main
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
 
-"""жизненный цикл приложения"""
-async def start_bot():
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
 async def start_db():
     if await db.setup_database():
         logging.info("БД запущена")
+        return True
+    return False
+
+
 """@asynccontextmanager
 async def lifespan(app: FastAPI):
     global bot_task
@@ -46,39 +39,6 @@ async def lifespan(app: FastAPI):
 """
 app = FastAPI()
 
-"""команды бота"""
-@dp.message_handler(commands=['start'])
-async def handle_start(message: Message):
-    logging.info(f"recieved start command from user")
-    args = message.get_args()
-    if args:
-        answer = await handle_deeplink(message, args)
-    else:
-        logging.info(f"no deeplink")
-        answer = "нужна ссылка с параметрами, попросите у своей организации"
-    await message.answer(answer)
-
-async def handle_deeplink(message: Message, args: str):
-    user = message.from_user
-    chat = message.chat
-    logging.info(args)
-    if int(args[-1]) == 1:
-        status = await db_functions.create_master(user, chat, args)
-        logging.info(f"{status} master with id {chat.id}")
-        if status.__eq__("error"):
-            return "Создать мастера не получилось"
-        return "Мастер добавлен в организацию, добро пожаловать!"
-    elif int(args[-1]) == 2:
-        status = await db_functions.create_user(user, chat, args)
-        logging.info(f"{status} user with id {chat.id}")
-        return "Добро пожаловать, для ознакомления с ассортиментом зайдите в tg mini app"
-    else:
-        status, unique_code = await db_functions.create_organization(chat)
-        logging.info(f"{status} organization with admin_id {chat.id}")
-        if unique_code == 0:
-            return "организация не создана"
-        return f"Ваш master_tg_bot = t.me/perviyfogovskiybot?start={unique_code}{1} \n user_tg_bot = t.me/perviyfogovskiybot?start={unique_code}{2}"
-
 
 """rest запросы"""
 @app.post("/appointments/", tags=["User"], response_model=StatusResponse)
@@ -86,10 +46,11 @@ async def create_appointment(appointment: AppointmentCreateRequest):
     status = await db_functions.create_appointment(appointment)
     return {"status": status}
 
-@app.post("/admins/create_admin/", tags=["Admin"], response_model=StatusResponse)
+@app.post("/admins/create_admin/", tags=["Admin"], response_model=IDResponse)
 async def create_admin(adm_request: AdminCreateRequest):
-    status = await db_functions.create_admin(adm_request)
-    return {"status": status}
+    status, adm_id = await db_functions.create_admin(adm_request)
+    return {"status": status,
+            "id": adm_id}
 
 @app.get("/possible-times/", tags=["User"], response_model=PossibleTimesResponse)
 async def get_possible_start_times(master_id: int, date: date, service_id: int):
@@ -147,25 +108,48 @@ async def update_master_profile(master_id: int, update_data: MasterUpdateRequest
         "master": updated_master.to_dict() if updated_master else None
     }
 
-@app.post("/admins/create_organization", tags=["Admin"], response_model=StatusResponse)
+@app.post("/admins/create_organization", tags=["Admin"], response_model=OrganizationResponse)
 async def create_organization(org_info: OrganizationCreateRequest):
-    status = await db_functions.create_organization(org_info)
-    return {"status": status}
+    status, master, user, org_id = await db_functions.create_organization(org_info)
+    tg_master_link = BOT_URL+master
+    tg_user_link = BOT_URL + user
+    return {"status": status,
+            "tg_master": tg_master_link,
+            "tg_user": tg_user_link,
+            "id": org_id}
 
-async def main():
+def run_bot_process():
+    """Запуск бота в отдельном процессе"""
+    asyncio.run(bot_main.start_bot())
+
+def run_server_process():
+    """Запуск сервера в отдельном процессе"""
+    async def start_server():
+        if await db.setup_database():
+            logging.info("База данных инициализирована")
+        config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+        server = uvicorn.Server(config)
+        await server.serve()
+    asyncio.run(start_server())
+
+"""async def main():
     try:
         if await db.setup_database():
             logging.info("База данных инициализирована")
         #await start_bot()
-        uvicorn.run(
-            "main:app",
-            reload=True
-        )
+        uvicorn.run("main:app",reload=True)
     except Exception as e:
         logging.error(f"Ошибка запуска: {e}")
     finally:
-        await db.close_connection()
+        await db.close_connection()"""
 
 if __name__ == "__main__":
-   asyncio.run(main())
+    bot_process = Process(target=run_bot_process)
+    server_process = Process(target=run_server_process)
+
+    bot_process.start()
+    server_process.start()
+
+    bot_process.join()
+    server_process.join()
 

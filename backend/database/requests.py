@@ -1,3 +1,4 @@
+import uuid
 from datetime import time, datetime, date
 from typing import Optional, Dict
 import re
@@ -11,10 +12,9 @@ class AppointmentCreateRequest(BaseModel):
     date: date
     start_time: time
     end_time: time
-    price_id: int
+    price_id: uuid.UUID
 
 class MasterUpdateRequest(BaseModel):
-    photo_path: Optional[str] = None
     full_name: Optional[str] = None
     working_day_start: Optional[time] = None
     working_day_end: Optional[time] = None
@@ -22,9 +22,8 @@ class MasterUpdateRequest(BaseModel):
 
 class MasterCreateRequest(BaseModel):
     id: int
-    organization_id: int
+    organization_id: uuid.UUID
     username: Optional[str] = "no info"
-    photo_path: Optional[str] = "no info"
     full_name: Optional[str] = "no info"
     working_day_start: Optional[time]
     working_day_end: Optional[time]
@@ -32,7 +31,7 @@ class MasterCreateRequest(BaseModel):
 
 class UserCreateRequest(BaseModel):
     id: int
-    organization_id: int
+    organization_id: uuid.UUID
     username: Optional[str] = None
 
 class OrganizationCreateRequest(BaseModel):
@@ -45,9 +44,9 @@ class OrganizationCreateRequest(BaseModel):
     day_start_template: time
     day_end_template: time
     day_off: str
-    admin_id: int
+    admin_id: uuid.UUID
 
 class AdminCreateRequest(BaseModel):
     email: EmailStr
     password: str
-    gtoken: Optional[str] = "no info"
+    yaToken: Optional[str] = "no info"

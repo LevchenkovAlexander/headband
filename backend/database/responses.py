@@ -1,3 +1,4 @@
+import uuid
 from typing import List, Dict, Any
 
 from pydantic import BaseModel
@@ -6,8 +7,12 @@ from pydantic import BaseModel
 class StatusResponse(BaseModel):
     status: str
 
-class OrganizationResponse(StatusResponse):
-    tg_links: List[str]
+class IDResponse(StatusResponse):
+    id: uuid.UUID
+
+class OrganizationResponse(IDResponse):
+    tg_master: str
+    tg_user: str
 
 class AppointmentListResponse(StatusResponse):
     count: int = 0

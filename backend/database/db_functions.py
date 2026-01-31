@@ -1,17 +1,16 @@
 import logging
-import random
 import hashlib
 import uuid
 
 
 
-from aiogram.types import Message, User, Chat
+from aiogram.types import User, Chat
 
-from headband.database import AppointmentModel, MasterModel, Week, UserModel, \
+from headband.backend.database import AppointmentModel, MasterModel, Week, UserModel, \
     OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel
 from datetime import time, timedelta, datetime
 
-from headband.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
+from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     OrganizationCreateRequest, AdminCreateRequest
 
 
@@ -171,15 +170,16 @@ async def cancel_appointment(appointment_id):
     finally:
         await session.close()
 
-async def create_master(user: User, chat: Chat, args: str):
+async def create_master(user: User, chat: Chat, organization_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
+        organization = await OrganizationModel.get_org_by_id(session=session, id = organization_id)
         master = MasterCreateRequest(id=chat.id,
-                                     organization_id=args[0:6],
+                                     organization_id=organization_id,
                                      username=user.username,
-                                     working_day_start=time(hour=8, minute=0),
-                                     working_day_end = time(hour=18, minute=0),
-                                     day_off = "0")
+                                     working_day_start=organization.day_start_template,
+                                     working_day_end = organization.day_end_template,
+                                     day_off = organization.day_off)
         if await MasterModel.create(session=session, data=master.model_dump()):
             return "success"
         return "unable to create"
@@ -190,11 +190,11 @@ async def create_master(user: User, chat: Chat, args: str):
     finally:
         await session.close()
 
-async def create_user(user: User, chat: Chat, args: str):
+async def create_user(user: User, chat: Chat, organization_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
         user = UserCreateRequest(id=chat.id,
-                                 organization_id=args[0:6],
+                                 organization_id=organization_id,
                                  username=user.username)
         if await UserModel.create(session=session, data=user.model_dump()):
             return "success"
@@ -212,13 +212,14 @@ async def create_organization(org_request: OrganizationCreateRequest):
         org_dict = org_request.model_dump()
         unique_code = str(uuid.uuid4())
         hash_uni = hashlib.sha256(unique_code.encode()).hexdigest()
-        org_dict["unique_code"] = hash_uni
-        status = await OrganizationModel.create(session=session, data=org_dict)
-        return status
+        org_dict["unique_code_master"] = hash_uni[0:32]
+        org_dict["unique_code_user"] = hash_uni[32:64]
+        status, org_id = await OrganizationModel.create(session=session, data=org_dict)
+        return status, hash_uni[0:32], hash_uni[32:64], org_id
     except Exception as e:
         await session.rollback()
         logging.info(f"Error creating organization: {e}")
-        return "error"
+        return "error", None, 0
     finally:
         await session.close()
 
@@ -226,12 +227,33 @@ async def create_admin(adm_request: AdminCreateRequest):
     session = AsyncSessionLocal()
     try:
         admin_dict = adm_request.model_dump()
-        status = await AdminModel.create(session=session, data=admin_dict)
-        return status
+        status, adm_id = await AdminModel.create(session=session, data=admin_dict)
+        return status, adm_id
     except Exception as e:
         await session.rollback()
         logging.info(f"Error creating appointment: {e}")
-        return "error"
+        return "error", 0
     finally:
         await session.close()
+
+async def user_master_deeplink(args: str):
+    session = AsyncSessionLocal()
+    try:
+        master_res, master_status = await OrganizationModel.get_by_master_unique(session=session, unique_code=args)
+        user_res, user_status = await OrganizationModel.get_by_user_unique(session=session, unique_code=args)
+        logging.info(f"user_res {user_res}")
+        logging.info(f"master_res {user_res}")
+        if master_status:
+            return 0, master_res
+        elif user_status:
+            return 1, user_res
+        else:
+            return 2, None
+    except Exception as e:
+        await session.rollback()
+        logging.info(f"Error with user_master_deeplink: {e}")
+        return 3, None
+    finally:
+        await session.close()
+
 

@@ -1,0 +1,30 @@
+import logging
+
+from aiogram import Bot, Dispatcher, types
+
+from headband.backend.database import db_functions
+
+#TODO в env конфид инфу
+BOT_TOKEN = "6676444574:AAEr9TBoYWGlAGnChuD3OP14k0_dX7qGdhs"
+BOT_URL = "http://t.me/perviyfogovskiybot?start="
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
+
+async def handle_deeplink(message: types.Message, args: str):
+    user = message.from_user
+    chat = message.chat
+    logging.info(args)
+    user_category, res = await db_functions.user_master_deeplink(args)
+    if user_category == 0:
+        status = await db_functions.create_master(user, chat, res)
+        logging.info(f"{status} master with id {chat.id}")
+        if status.__eq__("error"):
+            return "Создать мастера не получилось"
+        return "Мастер добавлен в организацию, добро пожаловать!"
+    elif user_category == 1:
+        status = await db_functions.create_user(user, chat, res)
+        logging.info(f"{status} user with id {chat.id}")
+        return "Добро пожаловать, для ознакомления с ассортиментом зайдите в tg mini app"
+    return "Ссылка недействительна"
+

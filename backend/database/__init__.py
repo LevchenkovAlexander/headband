@@ -1,7 +1,9 @@
 import logging
+import uuid
 from enum import Enum
 from typing import List
 
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey, select, Column, Integer, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -44,13 +46,13 @@ class Base(DeclarativeBase):
 class AppointmentModel(Base):
     __tablename__ = "appointments"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    master_id = Column(Integer, ForeignKey("masters.id"))
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     date: Mapped[date]
     start_time: Mapped[time]
     end_time: Mapped[time]
-    price_id: Mapped[int] = mapped_column(ForeignKey("prices.id"))
+    price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id"))
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -84,10 +86,10 @@ class AppointmentModel(Base):
 class AdminModel(Base):
     __tablename__ = "admins"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str]
     password: Mapped[str]
-    gtoken: Mapped[str]
+    yaToken: Mapped[str]
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -95,12 +97,12 @@ class AdminModel(Base):
         session.add(admin)
         await session.commit()
         await session.refresh(admin)
-        return "success"
+        return "success", admin.id
 
 class OrganizationModel(Base):
     __tablename__ = "organizations"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str]
     address: Mapped[str]
     description: Mapped[str]
@@ -110,8 +112,18 @@ class OrganizationModel(Base):
     day_start_template: Mapped[time]
     day_end_template: Mapped[time]
     day_off: Mapped[str]
-    admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"))
-    unique_code: Mapped[str]
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admins.id"))
+    unique_code_master: Mapped[str]
+    unique_code_user: Mapped[str]
+
+    @classmethod
+    async def get_org_by_id(cls, session: SessionDep, id: uuid.UUID):
+        query = select(cls).where(
+            cls.id == id
+        )
+        result = await session.execute(query)
+        org = result.scalar_one_or_none()
+        return org
 
     @classmethod
     async def check(cls, session: SessionDep, unique_code: str):
@@ -119,19 +131,38 @@ class OrganizationModel(Base):
         if organization is None:
             return False
         return True
+
+    @classmethod
+    async def get_by_master_unique(cls, session: SessionDep, unique_code: str):
+        query = select(cls).where(cls.unique_code_master.__eq__(unique_code))
+        result = await session.execute(query)
+        organization = result.scalars().first()
+        if organization is not None:
+            return organization.id, True
+        return None, False
+
+    @classmethod
+    async def get_by_user_unique(cls, session: SessionDep, unique_code: str):
+        query = select(cls).where(cls.unique_code_user.__eq__(unique_code))
+        result = await session.execute(query)
+        organization = result.scalars().first()
+        if organization is not None:
+            return organization.id, True
+        return None, False
+
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
-        user = cls(**data)
-        session.add(user)
+        org = cls(**data)
+        session.add(org)
         await session.commit()
-        await session.refresh(user)
-        return "success"
+        await session.refresh(org)
+        return "success", org.id
 
 class MasterModel(Base):
     __tablename__ = "masters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
     username: Mapped[str]
     full_name: Mapped[str]
     working_day_start: Mapped[time]
@@ -173,7 +204,7 @@ class UserModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str]
-    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
         user = cls(**data)
@@ -185,16 +216,16 @@ class UserModel(Base):
 class IndvidualPricesModel(Base):
     __tablename__ = "indvidual_prices"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
-    price_id: Mapped[int] = mapped_column(ForeignKey("prices.id"))
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id"))
+    price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id"))
     new_price: Mapped[int]
 
 class PriceModel(Base):
     __tablename__ = "prices"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    organization_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id"))
     name: Mapped[str]
     price: Mapped[int]
     category: Mapped[int]
