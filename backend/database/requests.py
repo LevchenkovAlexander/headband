@@ -45,6 +45,19 @@ class OrganizationCreateRequest(BaseModel):
     day_end_template: time
     day_off: str
     admin_id: uuid.UUID
+    
+class OrganizationUpdateRequest(BaseModel):
+    id: uuid.UUID
+    name: Optional[str] = None
+    address: Optional[str] = None
+    description: Optional[str] = "no info"
+    categories: Optional[str] = None
+    fixed_schedule: Optional[bool] = None
+    fixed_prices: Optional[bool] = None
+    day_start_template: Optional[time] = None
+    day_end_template: Optional[time] = None
+    day_off: Optional[str] = None
+    admin_id: uuid.UUID
 
 class AdminCreateRequest(BaseModel):
     email: EmailStr

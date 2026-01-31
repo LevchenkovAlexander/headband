@@ -11,7 +11,7 @@ from headband.backend.database import AppointmentModel, MasterModel, Week, UserM
 from datetime import time, timedelta, datetime
 
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
-    OrganizationCreateRequest, AdminCreateRequest
+    OrganizationCreateRequest, AdminCreateRequest, OrganizationUpdateRequest
 
 
 def _int_minutes_to_time(minutes: int) -> time:
@@ -222,6 +222,19 @@ async def create_organization(org_request: OrganizationCreateRequest):
         return "error", None, 0
     finally:
         await session.close()
+
+async def update_organization(organization_id: uuid.UUID, update_data: OrganizationUpdateRequest):
+    session = AsyncSessionLocal()
+    try:
+        org = OrganizationModel.update(session, organization_id, update_data)
+        return org, "success"
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error updating organization: {e}')
+        return None, "error"
+    finally:
+        await session.close()
+
 
 async def create_admin(adm_request: AdminCreateRequest):
     session = AsyncSessionLocal()

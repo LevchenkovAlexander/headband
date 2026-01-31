@@ -5,14 +5,16 @@ from typing import Dict, Any
 from datetime import date
 
 import uvicorn
-
+import uuid
 from fastapi import FastAPI
 
 from headband.backend import database as db
 from headband.backend.database import db_functions
-from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, AdminCreateRequest, OrganizationCreateRequest
+from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, \
+    AdminCreateRequest, OrganizationCreateRequest, OrganizationUpdateRequest
 from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
-    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse
+    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse, \
+    OrganizationUpdateResponse
 from headband.backend.telegram_bot import BOT_URL, bot_main
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
@@ -117,6 +119,15 @@ async def create_organization(org_info: OrganizationCreateRequest):
             "tg_master": tg_master_link,
             "tg_user": tg_user_link,
             "id": org_id}
+
+@app.patch("/admins/update_organization", tags=["Admin"], response_model=OrganizationUpdateResponse)
+async def update_organization(organization_id:  uuid.UUID, update_data: OrganizationUpdateRequest):
+    status, updated_fields = db_functions.update_organization();
+
+    return {
+        "status": status,
+        "updated_fields": updated_fields
+    }
 
 def run_bot_process():
     """Запуск бота в отдельном процессе"""

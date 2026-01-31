@@ -157,6 +157,19 @@ class OrganizationModel(Base):
         await session.commit()
         await session.refresh(org)
         return "success", org.id
+    
+    @classmethod
+    async def update(cls, session: SessionDep, org_id: uuid.UUID, update_data: dict):
+        query = (
+            update(cls)
+            .where(cls.id == org_id)
+            .values(**update_data)
+            .returning(cls)
+        )
+        result = await session.execute(query)
+        updated_org = result.scalar_one_or_none()
+        await session.commit()
+        return updated_org
 
 class MasterModel(Base):
     __tablename__ = "masters"
