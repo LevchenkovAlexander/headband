@@ -11,7 +11,7 @@ from headband.backend.database import AppointmentModel, MasterModel, Week, UserM
 from datetime import time, timedelta, datetime
 
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
-    OrganizationCreateRequest, AdminCreateRequest
+    OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest
 
 
 def _int_minutes_to_time(minutes: int) -> time:
@@ -235,6 +235,21 @@ async def create_admin(adm_request: AdminCreateRequest):
         return "error", 0
     finally:
         await session.close()
+
+async def create_price_position(price_position: PriceCreateRequest):
+    session = AsyncSessionLocal()
+    try:
+        price_dict = price_position.model_dump()
+        status = await PriceModel.create(session=session, data=price_dict)
+        return status
+    except Exception as e:
+        await session.rollback()
+        logging.info(f"Error creating price: {e}")
+        return "error"
+    finally:
+        await session.close()
+
+
 
 async def user_master_deeplink(args: str):
     session = AsyncSessionLocal()

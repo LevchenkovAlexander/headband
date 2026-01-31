@@ -10,7 +10,8 @@ from fastapi import FastAPI
 
 from headband.backend import database as db
 from headband.backend.database import db_functions
-from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, AdminCreateRequest, OrganizationCreateRequest
+from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, AdminCreateRequest, \
+    OrganizationCreateRequest, PriceCreateRequest
 from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
     AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse
 from headband.backend.telegram_bot import BOT_URL, bot_main
@@ -117,6 +118,11 @@ async def create_organization(org_info: OrganizationCreateRequest):
             "tg_master": tg_master_link,
             "tg_user": tg_user_link,
             "id": org_id}
+
+@app.post("/admins/create_price_position", tags=["Admin"], response_model=StatusResponse)
+async def create_price_position(price_position: PriceCreateRequest):
+    status = await db_functions.create_price_position(price_position=price_position)
+    return {"status": status}
 
 def run_bot_process():
     """Запуск бота в отдельном процессе"""
