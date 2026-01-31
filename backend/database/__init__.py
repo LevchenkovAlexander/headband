@@ -238,7 +238,7 @@ class PriceModel(Base):
     __tablename__ = "prices"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
     name: Mapped[str]
     price: Mapped[int]
     category: Mapped[int]
@@ -251,6 +251,13 @@ class PriceModel(Base):
         result = await session.execute(query)
         price = result.scalar_one_or_none()
         return price
+    @classmethod
+    async def create(cls, session: SessionDep, data: dict):
+        price = cls(**data)
+        session.add(price)
+        await session.commit()
+        await session.refresh(price)
+        return "success"
 
 class Week(Enum):
     MONDAY = "1"

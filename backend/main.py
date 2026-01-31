@@ -128,6 +128,10 @@ async def update_organization(organization_id:  uuid.UUID, update_data: Organiza
         "status": status,
         "updated_fields": updated_fields
     }
+@app.post("/admins/create_price_position", tags=["Admin"], response_model=StatusResponse)
+async def create_price_position(price_position: PriceCreateRequest):
+    status = await db_functions.create_price_position(price_position=price_position)
+    return {"status": status}
 
 def run_bot_process():
     """Запуск бота в отдельном процессе"""

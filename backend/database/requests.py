@@ -1,9 +1,8 @@
 import uuid
 from datetime import time, datetime, date
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import re
 from pydantic import BaseModel, validator, field_validator, EmailStr
-
 
 class AppointmentCreateRequest(BaseModel):
     id: Optional[int] = None
@@ -15,6 +14,7 @@ class AppointmentCreateRequest(BaseModel):
     price_id: uuid.UUID
 
 class MasterUpdateRequest(BaseModel):
+    id: int
     full_name: Optional[str] = None
     working_day_start: Optional[time] = None
     working_day_end: Optional[time] = None
@@ -58,6 +58,13 @@ class OrganizationUpdateRequest(BaseModel):
     day_end_template: Optional[time] = None
     day_off: Optional[str] = None
     admin_id: uuid.UUID
+
+class PriceCreateRequest(BaseModel):
+    organization_id: uuid.UUID
+    category: int
+    name: str
+    approximate_time: time
+    price: int
 
 class AdminCreateRequest(BaseModel):
     email: EmailStr
