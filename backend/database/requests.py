@@ -4,13 +4,15 @@ from typing import Optional, Dict, List
 import re
 from pydantic import BaseModel, validator, field_validator, EmailStr
 
+class IDRequest(BaseModel):
+    id: uuid.UUID
+
 class AppointmentCreateRequest(BaseModel):
     id: Optional[int] = None
     user_id: int
     master_id: int
     date: date
     start_time: time
-    end_time: time
     price_id: uuid.UUID
 
 class MasterUpdateRequest(BaseModel):
@@ -50,7 +52,7 @@ class OrganizationUpdateRequest(BaseModel):
     id: uuid.UUID
     name: Optional[str] = None
     address: Optional[str] = None
-    description: Optional[str] = "no info"
+    description: Optional[str] = None
     categories: Optional[str] = None
     fixed_schedule: Optional[bool] = None
     fixed_prices: Optional[bool] = None
@@ -58,6 +60,15 @@ class OrganizationUpdateRequest(BaseModel):
     day_end_template: Optional[time] = None
     day_off: Optional[str] = None
     admin_id: uuid.UUID
+
+class PriceUpdateRequest(BaseModel):
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    name: Optional[str] = None
+    price: Optional[str] = None
+    category: Optional[str] = None
+    approximate_time: Optional[str] = None
+
 
 class PriceCreateRequest(BaseModel):
     organization_id: uuid.UUID
@@ -70,3 +81,8 @@ class AdminCreateRequest(BaseModel):
     email: EmailStr
     password: str
     yaToken: Optional[str] = "no info"
+
+class AdminUpdateRequest(BaseModel):
+    id: uuid.UUID
+    password: Optional[str] = None
+    yaToken: Optional[str] = None

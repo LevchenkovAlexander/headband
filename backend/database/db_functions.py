@@ -7,48 +7,15 @@ import uuid
 from aiogram.types import User, Chat
 
 from headband.backend.database import AppointmentModel, MasterModel, Week, UserModel, \
-    OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel
-from datetime import time, timedelta, datetime
+    OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel, IndvidualPricesModel
+
 
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
-    OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest
-
-
-def _int_minutes_to_time(minutes: int) -> time:
-    """Перевод int минут в класс time"""
-    hours = minutes // 60
-    mins = minutes % 60
-    return time(hour=hours, minute=mins)
-
-def _get_week_dates(start_date: datetime) -> list[datetime]:
-    """Возвращает список из 7 дней недели, начиная с start_date"""
-    week = [start_date + timedelta(days=i) for i in range(7)]
-    return week
-
-def _timedelta_to_time(td: timedelta) -> time:
-    """Преобразует timedelta в time (только если < 24 часов)"""
-    if td.days < 0:
-        raise ValueError("Отрицательный timedelta не может быть преобразован в time")
-
-    total_seconds = int(td.total_seconds())
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-
-    return time(hour=hours, minute=minutes)
-
-def _time_to_timedelta(t: time) -> timedelta:
-    """Перевод из класса time в timedelta для выполнения действий"""
-    return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)
-
-def _timedelta_to_int_minutes(td: timedelta) -> int:
-    """Перевод из формата чч.мм.сс в int минут"""
-    return int(td.total_seconds() // 60)
-
-def _get_weekday_caps(date_obj=None):
-    """Получение дня недели из даты заглавными буквами"""
-    if date_obj is None:
-        date_obj = datetime.now()
-    return date_obj.strftime('%A').upper()
+    OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
+    AdminUpdateRequest
+from headband.backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
+    _get_week_dates, _timedelta_to_time
+from datetime import timedelta
 
 async def get_possible_start_time(master_id, date, service_id):
     """Получение возможного времени для записи"""
@@ -223,18 +190,68 @@ async def create_organization(org_request: OrganizationCreateRequest):
     finally:
         await session.close()
 
-async def update_organization(organization_id: uuid.UUID, update_data: OrganizationUpdateRequest):
+async def update_organization(update_data: OrganizationUpdateRequest):
     session = AsyncSessionLocal()
     try:
-        org = OrganizationModel.update(session, organization_id, update_data)
-        return org, "success"
+        org_to_upd = update_data.model_dump(exclude_unset=True)
+        status = await OrganizationModel.update(session=session, update_data=org_to_upd)
+        return status
     except Exception as e:
         await session.rollback()
         logging.info(f'Error updating organization: {e}')
-        return None, "error"
+        return "error"
     finally:
         await session.close()
 
+async def delete_organization(delete_id: uuid.UUID):
+    session = AsyncSessionLocal()
+    try:
+        status_user = await UserModel.delete_of_org(session=session, org_id=delete_id)
+        masters_id = await MasterModel.get_masters_by_org_id(session=session, org_id=delete_id)
+        status_indv_prices = "error"
+        status_appointments = "error"
+        for master_id in masters_id:
+            status_indv_prices = await IndvidualPricesModel.master_delete_price(session=session, master_id=master_id)
+            status_appointments = await AppointmentModel.master_delete_appointment(session=session, master_id=master_id)
+        status_master = await MasterModel.delete_masters_by_org_id(session=session, org_id=delete_id)
+        status_price = await PriceModel.delete_prices_by_org_id(session=session, org_id=delete_id)
+        return status_user+" "+status_indv_prices+" "+status_appointments+" "+status_master+" "+status_price
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error deleting price: {e}')
+        return "error"
+    finally:
+        await session.close()
+
+"""admin fetches"""
+async def delete_admin(delete_id: uuid.UUID):
+    session = AsyncSessionLocal()
+    try:
+        orgs_id = await OrganizationModel.get_organizations_by_adm_id(session=session, adm_id=delete_id)
+        status = ""
+        for org_id in orgs_id:
+            status += await delete_organization(delete_id=org_id)+" "
+        status += await AdminModel.delete(session=session, id=delete_id)
+        return status
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error deleting admin: {e}')
+        return "error"
+    finally:
+        await session.close()
+
+async def update_admin(update_data: AdminUpdateRequest):
+    session = AsyncSessionLocal()
+    try:
+        org_to_upd = update_data.model_dump(exclude_unset=True)
+        status = await AdminModel.update(session=session, update_data=org_to_upd)
+        return status
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error updating price: {e}')
+        return "error"
+    finally:
+        await session.close()
 
 async def create_admin(adm_request: AdminCreateRequest):
     session = AsyncSessionLocal()
@@ -249,15 +266,40 @@ async def create_admin(adm_request: AdminCreateRequest):
     finally:
         await session.close()
 
+"""price fetches"""
 async def create_price_position(price_position: PriceCreateRequest):
     session = AsyncSessionLocal()
     try:
         price_dict = price_position.model_dump()
-        status = await PriceModel.create(session=session, data=price_dict)
-        return status
+        status, id = await PriceModel.create(session=session, data=price_dict)
+        return status, id
     except Exception as e:
         await session.rollback()
         logging.info(f"Error creating price: {e}")
+        return "error", 0
+    finally:
+        await session.close()
+async def update_price(update_data: PriceUpdateRequest):
+    session = AsyncSessionLocal()
+    try:
+        org_to_upd = update_data.model_dump(exclude_unset=True)
+        status = await PriceModel.update(session=session, update_data=org_to_upd)
+        return status
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error updating price: {e}')
+        return "error"
+    finally:
+        await session.close()
+async def delete_price(delete_id: uuid.UUID):
+    session = AsyncSessionLocal()
+    try:
+        status_indv = await IndvidualPricesModel.organization_delete_price(session=session, price_id=delete_id)
+        status = await PriceModel.delete(session=session, id=delete_id)
+        return status+" "+status_indv
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error deleting price: {e}')
         return "error"
     finally:
         await session.close()

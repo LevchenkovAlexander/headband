@@ -14,9 +14,6 @@ class OrganizationResponse(IDResponse):
     tg_master: str
     tg_user: str
 
-class OrganizationUpdateResponse(StatusResponse):
-    ...
-
 class AppointmentListResponse(StatusResponse):
     count: int = 0
     appointments: List[Dict[str, Any]] = []

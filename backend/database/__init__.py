@@ -4,9 +4,9 @@ from enum import Enum
 from typing import List
 
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, Column, Integer, update
+from sqlalchemy import ForeignKey, select, Column, Integer, update, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, datetime, date, timedelta
 from sqlalchemy import inspect
 
@@ -25,7 +25,7 @@ SessionDep = AsyncSession
 async def setup_database():
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+            #await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
 
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
@@ -83,6 +83,17 @@ class AppointmentModel(Base):
             return "success"
         return "no such id"
 
+    @classmethod
+    async def master_delete_appointment(cls, session: SessionDep, master_id: int):
+        column = getattr(cls, "master_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Column master_id not found in {cls.__name__}"))
+            return "error"
+
+        stmt = delete(cls).where(column == master_id)
+        await session.execute(stmt)
+        return "success"
+
 class AdminModel(Base):
     __tablename__ = "admins"
 
@@ -98,6 +109,29 @@ class AdminModel(Base):
         await session.commit()
         await session.refresh(admin)
         return "success", admin.id
+    @classmethod
+    async def update(cls, session: SessionDep, update_data: dict):
+        obj_id = update_data.pop("id", None)
+        if not obj_id:
+            logging.error(ValueError("ID is required for update"))
+            return "ID is required for update"
+
+        query = (
+            update(cls)
+            .where(cls.id == obj_id)
+            .values(**update_data))
+        await session.execute(query)
+        await session.commit()
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: SessionDep, id: uuid.UUID):
+        obj = await session.get(cls, id)
+        if obj:
+            await session.delete(obj)
+            await session.commit()
+            return "success"
+        return "no such id admin"
 
 class OrganizationModel(Base):
     __tablename__ = "organizations"
@@ -157,20 +191,53 @@ class OrganizationModel(Base):
         await session.commit()
         await session.refresh(org)
         return "success", org.id
-    
+
     @classmethod
-    async def update(cls, session: SessionDep, org_id: uuid.UUID, update_data: dict):
+    async def update(cls, session: SessionDep, update_data: dict):
+        obj_id = update_data.pop("id", None)
+        if not obj_id:
+            logging.error(ValueError("ID is required for update"))
+            return "ID is required for update"
+
         query = (
             update(cls)
-            .where(cls.id == org_id)
-            .values(**update_data)
-            .returning(cls)
-        )
-        result = await session.execute(query)
-        updated_org = result.scalar_one_or_none()
+            .where(cls.id == obj_id)
+            .values(**update_data))
+        await session.execute(query)
         await session.commit()
-        return updated_org
+        return "success"
 
+    masters = relationship(
+        "MasterModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",  # Удаляет связанные записи
+        passive_deletes=True  # Оптимизирует удаление
+    )
+
+    prices = relationship(
+        "PriceModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
+    users = relationship(
+        "UserModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    @classmethod
+    async def get_organizations_by_adm_id(cls, session: SessionDep, adm_id: uuid.UUID):
+        column = getattr(cls, "admin_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Колонка admin_id не найдена"))
+            return "error"
+
+        stmt = select(cls.id).where(column == adm_id)
+        result = await session.execute(stmt)
+        ids = [row[0] for row in result.fetchall()]
+        return ids
 class MasterModel(Base):
     __tablename__ = "masters"
 
@@ -200,6 +267,17 @@ class MasterModel(Base):
         return master
 
     @classmethod
+    async def get_masters_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
+        column = getattr(cls, "organization_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Колонка organization_id не найдена"))
+            return "error"
+
+        stmt = select(cls.id).where(column == org_id)
+        result = await session.execute(stmt)
+        ids = [row[0] for row in result.fetchall()]
+        return ids
+    @classmethod
     async def update_master(cls, session: SessionDep, id: int, update_data: dict):
         query = (
             update(cls)
@@ -211,6 +289,17 @@ class MasterModel(Base):
         updated_master = result.scalar_one_or_none()
         await session.commit()
         return updated_master
+
+    @classmethod
+    async def delete_masters_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
+        column = getattr(cls, "organization_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Column organization_id not found in {cls.__name__}"))
+            return "error"
+
+        stmt = delete(cls).where(column == org_id)
+        await session.execute(stmt)
+        return "success"
 
 class UserModel(Base):
     __tablename__ = "users"
@@ -226,6 +315,12 @@ class UserModel(Base):
         await session.refresh(user)
         return True
 
+    @classmethod
+    async def delete_of_org(cls, session: SessionDep, org_id: uuid.UUID):
+        stmt = update(cls).where(getattr(cls, "organization_id") == org_id).values({"organization_id": uuid.UUID('00000000-0000-0000-0000-000000000000')})
+        await session.execute(stmt)
+        return "success"
+
 class IndvidualPricesModel(Base):
     __tablename__ = "indvidual_prices"
 
@@ -233,6 +328,37 @@ class IndvidualPricesModel(Base):
     master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id"))
     price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id"))
     new_price: Mapped[int]
+
+    master: Mapped["MasterModel"] = relationship(
+        "MasterModel",
+        back_populates="individual_prices"
+    )
+    price: Mapped["PriceModel"] = relationship(
+        "PriceModel",
+        back_populates="individual_prices"
+    )
+
+    @classmethod
+    async def organization_delete_price(cls, session: SessionDep, price_id: uuid.UUID):
+        column = getattr(cls, "price_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Column price_id not found in {cls.__name__}"))
+            return "error"
+
+        stmt = delete(cls).where(column == price_id)
+        await session.execute(stmt)
+        return "success"
+
+    @classmethod
+    async def master_delete_price(cls, session: SessionDep, master_id: int):
+        column = getattr(cls, "master_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Column master_id not found in {cls.__name__}"))
+            return "error"
+
+        stmt = delete(cls).where(column == master_id)
+        await session.execute(stmt)
+        return "success"
 
 class PriceModel(Base):
     __tablename__ = "prices"
@@ -243,6 +369,24 @@ class PriceModel(Base):
     price: Mapped[int]
     category: Mapped[int]
     approximate_time: Mapped[time]
+
+    organization: Mapped["OrganizationModel"] = relationship(
+        "OrganizationModel",
+        back_populates="prices"
+    )
+    appointments: Mapped[List["AppointmentModel"]] = relationship(
+        "AppointmentModel",
+        back_populates="price",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    individual_prices: Mapped[List["IndividualPricesModel"]] = relationship(
+        "IndividualPricesModel",
+        back_populates="price",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
     @classmethod
     async def get_price_by_id(cls, session: SessionDep, id: int):
         query = select(cls).where(
@@ -257,6 +401,40 @@ class PriceModel(Base):
         session.add(price)
         await session.commit()
         await session.refresh(price)
+        return "success", price.id
+
+    @classmethod
+    async def update(cls, session: SessionDep, update_data: dict):
+        obj_id = update_data.pop("id", None)
+        if not obj_id:
+            logging.error(ValueError("ID is required for update"))
+            return "ID is required for update"
+
+        query = (
+            update(cls)
+            .where(cls.id == obj_id)
+            .values(**update_data))
+        await session.execute(query)
+        await session.commit()
+        return "success"
+    @classmethod
+    async def delete(cls, session: SessionDep, id: uuid.UUID):
+        obj = await session.get(cls, id)
+        if obj:
+            await session.delete(obj)
+            await session.commit()
+            return "success"
+        return "no such id admin"
+
+    @classmethod
+    async def delete_prices_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
+        column = getattr(cls, "organization_id", None)
+        if column is None:
+            logging.error(AttributeError(f"Column organization_id not found in {cls.__name__}"))
+            return "error"
+
+        stmt = delete(cls).where(column == org_id)
+        await session.execute(stmt)
         return "success"
 
 class Week(Enum):

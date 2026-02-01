@@ -11,10 +11,10 @@ from fastapi import FastAPI
 from headband.backend import database as db
 from headband.backend.database import db_functions
 from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, \
-    AdminCreateRequest, OrganizationCreateRequest, OrganizationUpdateRequest
+    AdminCreateRequest, OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, PriceUpdateRequest, \
+    AdminUpdateRequest, IDRequest
 from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
-    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse, \
-    OrganizationUpdateResponse
+    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse
 from headband.backend.telegram_bot import BOT_URL, bot_main
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
@@ -48,11 +48,7 @@ async def create_appointment(appointment: AppointmentCreateRequest):
     status = await db_functions.create_appointment(appointment)
     return {"status": status}
 
-@app.post("/admins/create_admin/", tags=["Admin"], response_model=IDResponse)
-async def create_admin(adm_request: AdminCreateRequest):
-    status, adm_id = await db_functions.create_admin(adm_request)
-    return {"status": status,
-            "id": adm_id}
+
 
 @app.get("/possible-times/", tags=["User"], response_model=PossibleTimesResponse)
 async def get_possible_start_times(master_id: int, date: date, service_id: int):
@@ -119,18 +115,45 @@ async def create_organization(org_info: OrganizationCreateRequest):
             "tg_master": tg_master_link,
             "tg_user": tg_user_link,
             "id": org_id}
+@app.patch("/admins/update_organization", tags=["Admin"], response_model=StatusResponse)
+async def update_organization(update_data: OrganizationUpdateRequest):
+    status = await db_functions.update_organization(update_data=update_data)
+    return {"status": status}
 
-@app.patch("/admins/update_organization", tags=["Admin"], response_model=OrganizationUpdateResponse)
-async def update_organization(organization_id:  uuid.UUID, update_data: OrganizationUpdateRequest):
-    status, updated_fields = db_functions.update_organization();
+@app.delete("/admins/delete_organization", tags=["Admin"], response_model=StatusResponse)
+async def delete_organization(id_request: IDRequest):
+    status = await db_functions.delete_organization(delete_id=id_request.id)
+    return {"status": status}
+@app.post("/admins/create_price_position", tags=["Admin"], response_model=IDResponse)
+async def create_price(price_position: PriceCreateRequest):
+    status, id = await db_functions.create_price_position(price_position=price_position)
+    return {"status": status,
+            "id": id}
 
-    return {
-        "status": status,
-        "updated_fields": updated_fields
-    }
-@app.post("/admins/create_price_position", tags=["Admin"], response_model=StatusResponse)
-async def create_price_position(price_position: PriceCreateRequest):
-    status = await db_functions.create_price_position(price_position=price_position)
+@app.patch("/admins/update_price_position", tags=["Admin"], response_model=StatusResponse)
+async def update_price(update_data: PriceUpdateRequest):
+    status = await db_functions.update_price(update_data=update_data)
+    return {"status": status}
+
+@app.delete("/admins/delete_price_position", tags=["Admin"], response_model=StatusResponse)
+async def delete_price(id_request: IDRequest):
+    status = await db_functions.delete_price(delete_id=id_request.id)
+    return {"status": status}
+
+@app.post("/admins/create_admin/", tags=["Admin"], response_model=IDResponse)
+async def create_admin(adm_request: AdminCreateRequest):
+    status, adm_id = await db_functions.create_admin(adm_request)
+    return {"status": status,
+            "id": adm_id}
+
+@app.patch("/admins/update_admin", tags=["Admin"], response_model=StatusResponse)
+async def update_admin(update_data: AdminUpdateRequest):
+    status = await db_functions.update_admin(update_data=update_data)
+    return {"status": status}
+
+@app.delete("/admins/delete_admin", tags=["Admin"], response_model=StatusResponse)
+async def delete_admin(id_request: IDRequest):
+    status = await db_functions.delete_admin(delete_id=id_request.id)
     return {"status": status}
 
 def run_bot_process():
