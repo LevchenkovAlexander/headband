@@ -8,6 +8,8 @@ import recording from "../../assets/icons/recording.svg";
 import telegram from "../../assets/icons/telegram.svg";
 import galka from "../../assets/icons/galka.svg";
 
+import { Link } from "react-router-dom";
+
 type textProps = {
   text: string;
 };
@@ -55,9 +57,9 @@ const HomePage = () => {
     <div className="main">
       <div className="header">
         <div className="header__title">headband</div>
-        <button type="button" className="header__support">
-          Поддержка
-        </button>
+        <Link type="button" className="header__support" to="/authorization">
+          Войти в аккаунт
+        </Link>
       </div>
 
       <div className="start">
@@ -73,12 +75,16 @@ const HomePage = () => {
               пользователей любой категории.
             </div>
             <div className="promo__actions">
-              <button className="promo__btn promo__btn--subscribe">
+              <a
+                type="button"
+                href="#price"
+                className="promo__btn promo__btn--subscribe"
+              >
                 Перейти к подписке
-              </button>
-              <button type="button" className="promo__btn promo__btn--example">
+              </a>
+              <a type="button" href='#' className="promo__btn promo__btn--example">
                 Пример сайта
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -147,9 +153,9 @@ const HomePage = () => {
               <SpisokText text="бесплатный ИИ инструмент для примерки прически" />
               <SpisokText text="возможность связи с 2GIS и др. для отображения отзывов" />
             </div>
-            <button type="button" className="price__btn">
+            <Link type="button" className="price__btn" to="#">
               Оформить
-            </button>
+            </Link>
           </div>
         </div>
       </div>
