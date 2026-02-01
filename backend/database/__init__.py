@@ -1,14 +1,16 @@
+
 import logging
 import uuid
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, Column, Integer, update, delete
+from sqlalchemy import ForeignKey, select, update, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import time, datetime, date, timedelta
+from datetime import time, date
 from sqlalchemy import inspect
+
 
 engine = create_async_engine('postgresql+asyncpg://postgres:1234@localhost/headband')
 
@@ -18,19 +20,15 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
-
 SessionDep = AsyncSession
-
 
 async def setup_database():
     try:
         async with engine.begin() as conn:
-            #await conn.run_sync(Base.metadata.drop_all)
+            # await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
             logging.info(f"Таблицы в базе данных: {tables}")
-
             return True
     except Exception as e:
         logging.error(f"Ошибка создания БД: {e}")
@@ -43,64 +41,41 @@ async def close_connection():
 class Base(DeclarativeBase):
     pass
 
-class AppointmentModel(Base):
-    __tablename__ = "appointments"
+class Week(Enum):
+    MONDAY = "1"
+    TUESDAY = "2"
+    WEDNESDAY = "3"
+    THURSDAY = "4"
+    FRIDAY = "5"
+    SATURDAY = "6"
+    SUNDAY = "7"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
-    date: Mapped[date]
-    start_time: Mapped[time]
-    end_time: Mapped[time]
-    price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id"))
-
-    @classmethod
-    async def create(cls, session: SessionDep, data: dict):
-        appointment = cls(**data)
-        session.add(appointment)
-        await session.commit()
-        await session.refresh(appointment)
-        return "success"
-
-    @classmethod
-    async def get_by_master_and_date(cls, session: SessionDep, master_id: int, date: datetime.date) -> List['AppointmentModel']:
-        query = select(cls).where(
-            cls.master_id == master_id,
-            cls.date == date
-        ).order_by(cls.start_time)
-
-        result = await session.execute(query)
-        appointments = result.scalars().all()
-
-        return list(appointments)  # Возвращаем список объектов
-
-    @classmethod
-    async def delete(cls, session: SessionDep, id: int):
-        appointment = session.get(cls, id)
-        if appointment:
-            await session.delete(appointment)
-            await session.commit()
-            return "success"
-        return "no such id"
-
-    @classmethod
-    async def master_delete_appointment(cls, session: SessionDep, master_id: int):
-        column = getattr(cls, "master_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Column master_id not found in {cls.__name__}"))
-            return "error"
-
-        stmt = delete(cls).where(column == master_id)
-        await session.execute(stmt)
-        return "success"
+class ServiceCategory(Enum):
+    HAIRSTYLE = "1"
+    COSMETOLOGY_SKINCARE = "2"
+    MANICURE_PEDICURE = "3"
+    BROWS_LASHES = "4"
+    DEPILATION_EPILATION = "5"
+    MAKEUP = "6"
+    FULLMAKEUP_CONSULTATIONS = "7"
+    SOLARIUM = "8"
+    OTHER = "9"
 
 class AdminModel(Base):
     __tablename__ = "admins"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email: Mapped[str]
+    email: Mapped[str] = mapped_column(unique=True, index=True)
     password: Mapped[str]
-    yaToken: Mapped[str]
+    yaToken: Mapped[Optional[str]]
+
+    # Relationships
+    organizations: Mapped[List["OrganizationModel"]] = relationship(
+        "OrganizationModel",
+        back_populates="admin",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -109,6 +84,7 @@ class AdminModel(Base):
         await session.commit()
         await session.refresh(admin)
         return "success", admin.id
+
     @classmethod
     async def update(cls, session: SessionDep, update_data: dict):
         obj_id = update_data.pop("id", None)
@@ -137,50 +113,62 @@ class OrganizationModel(Base):
     __tablename__ = "organizations"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name: Mapped[str]
+    name: Mapped[str] = mapped_column(index=True)
     address: Mapped[str]
-    description: Mapped[str]
+    description: Mapped[str] = mapped_column(default="no info")
     categories: Mapped[str]
     fixed_schedule: Mapped[bool]
     fixed_prices: Mapped[bool]
     day_start_template: Mapped[time]
     day_end_template: Mapped[time]
     day_off: Mapped[str]
-    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admins.id"))
-    unique_code_master: Mapped[str]
-    unique_code_user: Mapped[str]
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admins.id", ondelete="CASCADE"))
+    unique_code_master: Mapped[str] = mapped_column(unique=True, index=True)
+    unique_code_user: Mapped[str] = mapped_column(unique=True, index=True)
+
+    # Relationships
+    admin: Mapped["AdminModel"] = relationship("AdminModel", back_populates="organizations")
+    masters: Mapped[List["MasterModel"]] = relationship(
+        "MasterModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    prices: Mapped[List["PriceModel"]] = relationship(
+        "PriceModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    users: Mapped[List["UserModel"]] = relationship(
+        "UserModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def get_org_by_id(cls, session: SessionDep, id: uuid.UUID):
-        query = select(cls).where(
-            cls.id == id
-        )
+        query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         org = result.scalar_one_or_none()
         return org
 
     @classmethod
-    async def check(cls, session: SessionDep, unique_code: str):
-        organization = await session.get(cls, ident=unique_code)
-        if organization is None:
-            return False
-        return True
-
-    @classmethod
     async def get_by_master_unique(cls, session: SessionDep, unique_code: str):
-        query = select(cls).where(cls.unique_code_master.__eq__(unique_code))
+        query = select(cls).where(cls.unique_code_master == unique_code)
         result = await session.execute(query)
-        organization = result.scalars().first()
-        if organization is not None:
+        organization = result.scalar_one_or_none()
+        if organization:
             return organization.id, True
         return None, False
 
     @classmethod
     async def get_by_user_unique(cls, session: SessionDep, unique_code: str):
-        query = select(cls).where(cls.unique_code_user.__eq__(unique_code))
+        query = select(cls).where(cls.unique_code_user == unique_code)
         result = await session.execute(query)
-        organization = result.scalars().first()
-        if organization is not None:
+        organization = result.scalar_one_or_none()
+        if organization:
             return organization.id, True
         return None, False
 
@@ -207,47 +195,43 @@ class OrganizationModel(Base):
         await session.commit()
         return "success"
 
-    masters = relationship(
-        "MasterModel",
-        back_populates="organization",
-        cascade="all, delete-orphan",  # Удаляет связанные записи
-        passive_deletes=True  # Оптимизирует удаление
-    )
-
-    prices = relationship(
-        "PriceModel",
-        back_populates="organization",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
-    users = relationship(
-        "UserModel",
-        back_populates="organization",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
     @classmethod
     async def get_organizations_by_adm_id(cls, session: SessionDep, adm_id: uuid.UUID):
-        column = getattr(cls, "admin_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Колонка admin_id не найдена"))
-            return "error"
-
-        stmt = select(cls.id).where(column == adm_id)
-        result = await session.execute(stmt)
+        query = select(cls.id).where(cls.admin_id == adm_id)
+        result = await session.execute(query)
         ids = [row[0] for row in result.fetchall()]
         return ids
+
 class MasterModel(Base):
     __tablename__ = "masters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
-    username: Mapped[str]
-    full_name: Mapped[str]
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    username: Mapped[str] = mapped_column(default="no info")
+    full_name: Mapped[str] = mapped_column(default="no info")
     working_day_start: Mapped[time]
     working_day_end: Mapped[time]
     day_off: Mapped[str]
+
+    # Relationships
+    organization: Mapped["OrganizationModel"] = relationship(
+        "OrganizationModel",
+        back_populates="masters"
+    )
+    appointments: Mapped[List["AppointmentModel"]] = relationship(
+        "AppointmentModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    individual_prices: Mapped[List["IndividualPricesModel"]] = relationship(
+        "IndividualPricesModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -259,24 +243,18 @@ class MasterModel(Base):
 
     @classmethod
     async def get_master_by_id(cls, session: SessionDep, id: int):
-        query = select(cls).where(
-            cls.id == id
-        )
+        query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         master = result.scalar_one_or_none()
         return master
 
     @classmethod
     async def get_masters_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
-        column = getattr(cls, "organization_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Колонка organization_id не найдена"))
-            return "error"
-
-        stmt = select(cls.id).where(column == org_id)
-        result = await session.execute(stmt)
+        query = select(cls.id).where(cls.organization_id == org_id)
+        result = await session.execute(query)
         ids = [row[0] for row in result.fetchall()]
         return ids
+
     @classmethod
     async def update_master(cls, session: SessionDep, id: int, update_data: dict):
         query = (
@@ -290,23 +268,27 @@ class MasterModel(Base):
         await session.commit()
         return updated_master
 
-    @classmethod
-    async def delete_masters_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
-        column = getattr(cls, "organization_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Column organization_id not found in {cls.__name__}"))
-            return "error"
-
-        stmt = delete(cls).where(column == org_id)
-        await session.execute(stmt)
-        return "success"
-
 class UserModel(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str]
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
+    username: Mapped[Optional[str]]
+    organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("organizations.id", ondelete="SET NULL")
+    )
+
+    # Relationships
+    organization: Mapped[Optional["OrganizationModel"]] = relationship(
+        "OrganizationModel",
+        back_populates="users"
+    )
+    appointments: Mapped[List["AppointmentModel"]] = relationship(
+        "AppointmentModel",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
         user = cls(**data)
@@ -317,59 +299,70 @@ class UserModel(Base):
 
     @classmethod
     async def delete_of_org(cls, session: SessionDep, org_id: uuid.UUID):
-        stmt = update(cls).where(getattr(cls, "organization_id") == org_id).values({"organization_id": uuid.UUID('00000000-0000-0000-0000-000000000000')})
+        # Теперь это будет происходить автоматически через ondelete="SET NULL"
+        # Но оставим метод для обратной совместимости
+        stmt = update(cls).where(cls.organization_id == org_id).values(
+            {"organization_id": None}
+        )
         await session.execute(stmt)
         return "success"
 
-class IndvidualPricesModel(Base):
-    __tablename__ = "indvidual_prices"
+class AppointmentModel(Base):
+    __tablename__ = "appointments"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id"))
-    price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id"))
-    new_price: Mapped[int]
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    date: Mapped[date]
+    start_time: Mapped[time]
+    end_time: Mapped[time]
+    price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id", ondelete="CASCADE"))
 
-    master: Mapped["MasterModel"] = relationship(
-        "MasterModel",
-        back_populates="individual_prices"
-    )
-    price: Mapped["PriceModel"] = relationship(
-        "PriceModel",
-        back_populates="individual_prices"
-    )
+    # Relationships
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="appointments")
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="appointments")
+    price: Mapped["PriceModel"] = relationship("PriceModel", back_populates="appointments")
 
     @classmethod
-    async def organization_delete_price(cls, session: SessionDep, price_id: uuid.UUID):
-        column = getattr(cls, "price_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Column price_id not found in {cls.__name__}"))
-            return "error"
-
-        stmt = delete(cls).where(column == price_id)
-        await session.execute(stmt)
+    async def create(cls, session: SessionDep, data: dict):
+        appointment = cls(**data)
+        session.add(appointment)
+        await session.commit()
+        await session.refresh(appointment)
         return "success"
 
     @classmethod
-    async def master_delete_price(cls, session: SessionDep, master_id: int):
-        column = getattr(cls, "master_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Column master_id not found in {cls.__name__}"))
-            return "error"
+    async def get_by_master_and_date(cls, session: SessionDep, master_id: int, date: date) -> List['AppointmentModel']:
+        query = select(cls).where(
+            cls.master_id == master_id,
+            cls.date == date
+        ).order_by(cls.start_time)
+        result = await session.execute(query)
+        appointments = result.scalars().all()
+        return list(appointments)
 
-        stmt = delete(cls).where(column == master_id)
-        await session.execute(stmt)
-        return "success"
+    @classmethod
+    async def delete(cls, session: SessionDep, id: uuid.UUID):
+        appointment = await session.get(cls, id)
+        if appointment:
+            await session.delete(appointment)
+            await session.commit()
+            return "success"
+        return "no such id"
 
 class PriceModel(Base):
     __tablename__ = "prices"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE")
+    )
     name: Mapped[str]
     price: Mapped[int]
     category: Mapped[int]
     approximate_time: Mapped[time]
 
+    # Relationships
     organization: Mapped["OrganizationModel"] = relationship(
         "OrganizationModel",
         back_populates="prices"
@@ -388,13 +381,12 @@ class PriceModel(Base):
     )
 
     @classmethod
-    async def get_price_by_id(cls, session: SessionDep, id: int):
-        query = select(cls).where(
-            cls.id == id
-        )
+    async def get_price_by_id(cls, session: SessionDep, id: uuid.UUID):
+        query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         price = result.scalar_one_or_none()
         return price
+
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
         price = cls(**data)
@@ -417,6 +409,7 @@ class PriceModel(Base):
         await session.execute(query)
         await session.commit()
         return "success"
+
     @classmethod
     async def delete(cls, session: SessionDep, id: uuid.UUID):
         obj = await session.get(cls, id)
@@ -424,35 +417,44 @@ class PriceModel(Base):
             await session.delete(obj)
             await session.commit()
             return "success"
-        return "no such id admin"
+        return "no such id price"
 
     @classmethod
     async def delete_prices_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
-        column = getattr(cls, "organization_id", None)
-        if column is None:
-            logging.error(AttributeError(f"Column organization_id not found in {cls.__name__}"))
-            return "error"
-
-        stmt = delete(cls).where(column == org_id)
-        await session.execute(stmt)
+        # Теперь это происходит автоматически через каскад
+        # Но оставим для обратной совместимости
+        query = delete(cls).where(cls.organization_id == org_id)
+        await session.execute(query)
         return "success"
 
-class Week(Enum):
-    MONDAY = "1"
-    TUESDAY = "2"
-    WEDNESDAY = "3"
-    THURSDAY = "4"
-    FRIDAY = "5"
-    SATURDAY = "6"
-    SUNDAY = "7"
+class IndividualPricesModel(Base):
+    __tablename__ = "individual_prices"
 
-class ServiceCategory(Enum):
-    HAIRSTYLE = "1"
-    COSMETOLOGY_SKINCARE = "2"
-    MANICURE_PEDICURE = "3"
-    BROWS_LASHES = "4"
-    DEPILATION_EPILATION = "5"
-    MAKEUP = "6"
-    FULLMAKEUP_CONSULTATIONS = "7"
-    SOLARIUM = "8"
-    OTHER = "9"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id", ondelete="CASCADE"))
+    new_price: Mapped[int]
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship(
+        "MasterModel",
+        back_populates="individual_prices"
+    )
+    price: Mapped["PriceModel"] = relationship(
+        "PriceModel",
+        back_populates="individual_prices"
+    )
+
+    @classmethod
+    async def organization_delete_price(cls, session: SessionDep, price_id: uuid.UUID):
+
+        query = delete(cls).where(cls.price_id == price_id)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def master_delete_price(cls, session: SessionDep, master_id: int):
+
+        query = delete(cls).where(cls.master_id == master_id)
+        await session.execute(query)
+        return "success"

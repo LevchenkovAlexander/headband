@@ -5,7 +5,6 @@ from typing import Dict, Any
 from datetime import date
 
 import uvicorn
-import uuid
 from fastapi import FastAPI
 
 from headband.backend import database as db
@@ -151,10 +150,6 @@ async def update_admin(update_data: AdminUpdateRequest):
     status = await db_functions.update_admin(update_data=update_data)
     return {"status": status}
 
-@app.delete("/admins/delete_admin", tags=["Admin"], response_model=StatusResponse)
-async def delete_admin(id_request: IDRequest):
-    status = await db_functions.delete_admin(delete_id=id_request.id)
-    return {"status": status}
 
 def run_bot_process():
     """Запуск бота в отдельном процессе"""

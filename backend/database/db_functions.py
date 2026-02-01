@@ -203,42 +203,25 @@ async def update_organization(update_data: OrganizationUpdateRequest):
     finally:
         await session.close()
 
+
 async def delete_organization(delete_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
-        status_user = await UserModel.delete_of_org(session=session, org_id=delete_id)
-        masters_id = await MasterModel.get_masters_by_org_id(session=session, org_id=delete_id)
-        status_indv_prices = "error"
-        status_appointments = "error"
-        for master_id in masters_id:
-            status_indv_prices = await IndvidualPricesModel.master_delete_price(session=session, master_id=master_id)
-            status_appointments = await AppointmentModel.master_delete_appointment(session=session, master_id=master_id)
-        status_master = await MasterModel.delete_masters_by_org_id(session=session, org_id=delete_id)
-        status_price = await PriceModel.delete_prices_by_org_id(session=session, org_id=delete_id)
-        return status_user+" "+status_indv_prices+" "+status_appointments+" "+status_master+" "+status_price
+        org = await session.get(OrganizationModel, delete_id)
+        if not org:
+            return "organization not found"
+        await session.delete(org)
+        await session.commit()
+        return "success"
     except Exception as e:
         await session.rollback()
-        logging.info(f'Error deleting price: {e}')
+        logging.error(f'Error deleting organization: {e}')
         return "error"
     finally:
         await session.close()
 
 """admin fetches"""
-async def delete_admin(delete_id: uuid.UUID):
-    session = AsyncSessionLocal()
-    try:
-        orgs_id = await OrganizationModel.get_organizations_by_adm_id(session=session, adm_id=delete_id)
-        status = ""
-        for org_id in orgs_id:
-            status += await delete_organization(delete_id=org_id)+" "
-        status += await AdminModel.delete(session=session, id=delete_id)
-        return status
-    except Exception as e:
-        await session.rollback()
-        logging.info(f'Error deleting admin: {e}')
-        return "error"
-    finally:
-        await session.close()
+
 
 async def update_admin(update_data: AdminUpdateRequest):
     session = AsyncSessionLocal()
@@ -291,15 +274,22 @@ async def update_price(update_data: PriceUpdateRequest):
         return "error"
     finally:
         await session.close()
+
+
 async def delete_price(delete_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
-        status_indv = await IndvidualPricesModel.organization_delete_price(session=session, price_id=delete_id)
-        status = await PriceModel.delete(session=session, id=delete_id)
-        return status+" "+status_indv
+        price = await session.get(PriceModel, delete_id)
+        if not price:
+            return "price not found"
+
+        # Удалит каскадно appointments и individual_prices
+        await session.delete(price)
+        await session.commit()
+        return "success"
     except Exception as e:
         await session.rollback()
-        logging.info(f'Error deleting price: {e}')
+        logging.error(f'Error deleting price: {e}')
         return "error"
     finally:
         await session.close()
