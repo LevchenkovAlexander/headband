@@ -57,7 +57,7 @@ const HomePage = () => {
     <div className="main">
       <div className="header">
         <div className="header__title">headband</div>
-        <Link type="button" className="header__support" to="#">
+        <Link type="button" className="header__support" to="/authorization">
           Войти в аккаунт
         </Link>
       </div>
