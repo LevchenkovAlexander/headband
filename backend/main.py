@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import uuid
 from multiprocessing import Process
 from typing import Dict, Any
 from datetime import date
@@ -11,9 +12,9 @@ from headband.backend import database as db
 from headband.backend.database import db_functions
 from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, \
     AdminCreateRequest, OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, PriceUpdateRequest, \
-    AdminUpdateRequest, IDRequest
+    AdminUpdateRequest, IDRequest, PossibleTimeRequest
 from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
-    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse
+    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse, AppointmentResponse
 from headband.backend.telegram_bot import BOT_URL, bot_main
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
@@ -48,44 +49,43 @@ async def create_appointment(appointment: AppointmentCreateRequest):
     return {"status": status}
 
 
-
-@app.get("/possible-times/", tags=["User"], response_model=PossibleTimesResponse)
-async def get_possible_start_times(master_id: int, date: date, service_id: int):
+@app.get("/appointments/possible-times", tags=["User"], response_model=PossibleTimesResponse)
+async def get_possible_start_times(master_id: uuid.UUID, appointment_date: date, price_id: uuid.UUID):
     poss_start, status = await db_functions.get_possible_start_time(
         master_id=master_id,
-        date=date,
-        service_id=service_id)
+        date=appointment_date,
+        price_id=price_id)
     return {
         "status": status,
         "times": poss_start or []
     }
 
-@app.delete("/appointments/{appointment_id}", tags=["User"], response_model=StatusResponse)
-async def cancel_appointment(appointment_id: int):
-    status = await db_functions.cancel_appointment(appointment_id)
+@app.delete("/appointments/", tags=["User"], response_model=StatusResponse)
+async def cancel_appointment(id: IDRequest):
+    status = await db_functions.cancel_appointment(id.id)
     return {"status": status}
 
-@app.get("/masters/{master_id}/today/", tags=["Master"], response_model=AppointmentListResponse)
+@app.get("/masters/appointments/today/", tags=["Master"], response_model=AppointmentListResponse)
 async def get_today_appointments(master_id: int):
     today = date.today()
     appointments, count, status = await db_functions.get_appointments_by_date(master_id, today)
     return {
         "status": status,
         "count": count,
-        "appointments": [a.to_dict() for a in appointments] if appointments else []
+        "appointments": [AppointmentResponse.model_validate(a).model_dump() for a in appointments] if appointments else []
     }
 
-@app.get("/masters/{master_id}/date/{date_str}", tags=["Master"], response_model=AppointmentListResponse)
+@app.get("/masters/appointments/", tags=["Master"], response_model=AppointmentListResponse)
 async def get_appointments_by_date(master_id: int, date: date):
     appointments, count, status = await db_functions.get_appointments_by_date(master_id, date)
 
     return {
         "status": status,
         "count": count,
-        "appointments": [a.to_dict() for a in appointments] if appointments else []
+        "appointments": [AppointmentResponse.model_validate(a).model_dump() for a in appointments] if appointments else []
     }
 
-@app.get("/masters/{master_id}/week/{date_str}", tags=["Master"], response_model=WeekTimetableResponse)
+@app.get("/masters/appointments/week/", tags=["Master"], response_model=WeekTimetableResponse)
 async def get_week_timetable(master_id: int, start_date: date):
     week_appointments, status = await db_functions.get_week_timetable(master_id, start_date)
     return {
@@ -93,16 +93,12 @@ async def get_week_timetable(master_id: int, start_date: date):
         "week_appointments": week_appointments
     }
 
-@app.patch("/masters/{master_id}/profile", tags=["Master"], response_model=Dict[str, Any])
-async def update_master_profile(master_id: int, update_data: MasterUpdateRequest):
-    updated_master, status = await db_functions.update_master(
-        master_id=master_id,
-        update_data=update_data
-    )
+@app.patch("/masters/profile", tags=["Master"], response_model=StatusResponse)
+async def update_master_profile(update_data: MasterUpdateRequest):
+    status = await db_functions.update_master(update_data=update_data)
 
     return {
         "status": status,
-        "master": updated_master.to_dict() if updated_master else None
     }
 
 @app.post("/admins/create_organization", tags=["Admin"], response_model=OrganizationResponse)

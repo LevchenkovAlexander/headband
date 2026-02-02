@@ -13,11 +13,12 @@ from headband.backend.database import AppointmentModel, MasterModel, Week, UserM
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
     AdminUpdateRequest
+from headband.backend.database.responses import AppointmentResponse
 from headband.backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
     _get_week_dates, _timedelta_to_time
 from datetime import timedelta
 
-async def get_possible_start_time(master_id, date, service_id):
+async def get_possible_start_time(master_id, date, price_id):
     """Получение возможного времени для записи"""
     session = AsyncSessionLocal()
     try:
@@ -30,7 +31,11 @@ async def get_possible_start_time(master_id, date, service_id):
             return None, "day off"
 
         else:
-            appointments = await AppointmentModel.get_by_master_and_date(session = session, master_id=master_id, date=date)
+            id = []
+            id.append(master_id)
+            #так как здесь мы работаем в рамках одной организации,
+            #нам не за чем знать его записей в других
+            appointments = await AppointmentModel.get_by_master_and_date(session = session, master_ids=id, date=date)
 
             day_start = master.working_day_start
             day_end = master.working_day_end
@@ -43,19 +48,19 @@ async def get_possible_start_time(master_id, date, service_id):
                 end_time.append(_time_to_timedelta(appointment.end_time))
             start_time.append(_time_to_timedelta(day_end))
 
-            price = await PriceModel.get_price_by_id(session = session, id=service_id)
+            price = await PriceModel.get_price_by_id(session = session, id=price_id)
             appointment_approx_time = price.approximate_time
             possible_time_for_start = 0
             possible_starts = []
             ten_minutes_gap = timedelta(minutes=10)
             for i in range(len(start_time)):
                 gap = start_time[i]-end_time[i]
-                if gap>=appointment_approx_time:
-                    free_minutes = gap-appointment_approx_time
+                if gap>=_time_to_timedelta(appointment_approx_time):
+                    free_minutes = gap-_time_to_timedelta(appointment_approx_time)
                     k = _timedelta_to_int_minutes(free_minutes)//10
                     possible_time_for_start+=(k+1)
                     for j in range(k+1):
-                        possible_starts.append(end_time[i]+ten_minutes_gap*j)
+                        possible_starts.append(_timedelta_to_time(end_time[i]+ten_minutes_gap*j))
             if possible_time_for_start == 0:
                 return None, "no time for app"
             else:
@@ -67,11 +72,12 @@ async def get_possible_start_time(master_id, date, service_id):
     finally:
         await session.close()
 
-async def get_appointments_by_date(master_id, date):
+async def get_appointments_by_date(master_chat_id, date):
     session = AsyncSessionLocal()
     try:
-        appointments = await AppointmentModel.get_by_master_and_date(session = session, master_id=master_id, date=date)
-        if appointments:
+        ids = await MasterModel.get_ids_by_chat_id(session=session, chat_id=master_chat_id)
+        appointments, flag = await AppointmentModel.get_by_master_and_date(session = session, master_ids=ids, date=date)
+        if flag:
             return appointments, len(appointments), "success"
         return None, 0, "no appointments today"
     except Exception as e:
@@ -87,23 +93,24 @@ async def get_week_timetable(master_id, date):
         week_list = _get_week_dates(date)
         week_appointments = []
         for day in week_list:
-            appointments = await get_appointments_by_date(master_id, day)
-            week_appointments.append(appointments)
+            appointments, count, status = await get_appointments_by_date(master_id, day)
+            week_appointments.append([AppointmentResponse.model_validate(a).model_dump() for a in appointments] if appointments else [])
         return week_appointments, "success"
     except Exception as e:
         await session.rollback()
         logging.info(f"Error getting appointments for week: {e}")
-        return None, "error"
+        return [], "error"
     finally:
         await session.close()
 
 async def create_appointment(appointment_request: AppointmentCreateRequest):
     session = AsyncSessionLocal()
     try:
-        price = await PriceModel.get_price_by_id(session = session, id=appointment_request.service_id)
-        appointment_approx_time = price.approximate_time
+        price = await PriceModel.get_price_by_id(session = session, id=appointment_request.price_id)
+        address = await OrganizationModel.get_address_by_id(session=session, id = price.organization_id)
         appointment_dict = appointment_request.model_dump()
-        appointment_dict["end_time"] = _timedelta_to_time(_time_to_timedelta(appointment_dict["start_time"])+appointment_approx_time)
+        appointment_dict["end_time"] = _timedelta_to_time(_time_to_timedelta(appointment_dict["start_time"])+_time_to_timedelta(price.approximate_time))
+        appointment_dict["address"] = address
         status = await AppointmentModel.create(session = session, data=appointment_dict)
         return status
     except Exception as e:
@@ -113,15 +120,16 @@ async def create_appointment(appointment_request: AppointmentCreateRequest):
     finally:
         await session.close()
 
-async def update_master(master_id, update_data):
+async def update_master(update_data):
     session = AsyncSessionLocal()
     try:
-        master = await MasterModel.update_master(session=session, id = master_id, update_data=update_data)
-        return master, "success"
+        master_to_upd = update_data.model_dump(exclude_unset=True)
+        status = await MasterModel.update(session=session, update_data=master_to_upd)
+        return status
     except Exception as e:
         await session.rollback()
         logging.info(f"Error updating master: {e}")
-        return None, "error"
+        return "error"
     finally:
         await session.close()
 
@@ -157,16 +165,6 @@ async def create_master(user: User, chat: Chat, organization_id: uuid.UUID):
     finally:
         await session.close()
 
-async def get_categories(org_id: uuid.UUID):
-    session = AsyncSessionLocal()
-    try:
-        return OrganizationModel.get_categories(session=session, id=org_id)
-    except Exception as e:
-        await session.rollback()
-        logging.info(f"Error getting ids: {e}")
-        return  None, False
-    finally:
-        await session.close()
 
 async def create_user(user: User, chat: Chat, organization_id: uuid.UUID):
     session = AsyncSessionLocal()

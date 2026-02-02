@@ -4,14 +4,18 @@ from typing import Optional
 from pydantic import BaseModel, field_validator, EmailStr
 
 
+class PossibleTimeRequest(BaseModel):
+    master_id: uuid.UUID
+    appointment_date: date
+    price_id: uuid.UUID
+
 
 class IDRequest(BaseModel):
     id: uuid.UUID
 
 class AppointmentCreateRequest(BaseModel):
-    id: Optional[int] = None
-    user_id: int
-    master_id: int
+    user_id: uuid.UUID
+    master_id: uuid.UUID
     date: date
     start_time: time
     price_id: uuid.UUID
@@ -43,7 +47,6 @@ class OrganizationCreateRequest(BaseModel):
     address: str
     description: Optional[str] = "no info"
     categories: str
-    fixed_schedule: bool
     fixed_prices: bool
     day_start_template: time
     day_end_template: time

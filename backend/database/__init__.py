@@ -38,8 +38,8 @@ async def setup_database():
                     await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
                     logging.info(f"Таблица {table} удалена")
                 except Exception as e:
-                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")"""
-
+                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")
+"""
             await conn.run_sync(Base.metadata.create_all)
 
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
@@ -216,7 +216,12 @@ class OrganizationModel(Base):
         ids = [row[0] for row in result.fetchall()]
         return ids
 
-
+    @classmethod
+    async def get_address_by_id(cls, session: SessionDep, id: uuid.UUID):
+        query = select(cls.address).where(cls.id == id)
+        result = await session.execute(query)
+        address = result.scalar_one_or_none()
+        return address
 
 class MasterModel(Base):
     __tablename__ = "masters"
@@ -259,7 +264,7 @@ class MasterModel(Base):
         return True
 
     @classmethod
-    async def get_master_by_id(cls, session: SessionDep, id: int):
+    async def get_master_by_id(cls, session: SessionDep, id: uuid):
         query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         master = result.scalar_one_or_none()
@@ -273,17 +278,27 @@ class MasterModel(Base):
         return ids
 
     @classmethod
-    async def update_master(cls, session: SessionDep, id: int, update_data: dict):
+    async def update(cls, session: SessionDep, update_data: dict):
+        obj_id = update_data.pop("id", None)
+        if not obj_id:
+            logging.error(ValueError("ID is required for update"))
+            return "ID is required for update"
+
         query = (
             update(cls)
-            .where(cls.id == id)
-            .values(**update_data)
-            .returning(cls)
-        )
-        result = await session.execute(query)
-        updated_master = result.scalar_one_or_none()
+            .where(cls.id == obj_id)
+            .values(**update_data))
+        await session.execute(query)
         await session.commit()
-        return updated_master
+        return "success"
+
+    @classmethod
+    async def get_ids_by_chat_id(cls, session: SessionDep, chat_id: int):
+        query = select(cls.id).where(
+            cls.chat_id == chat_id)
+        result = await session.execute(query)
+        ids = result.scalars().all()
+        return list(ids)
 
 class UserModel(Base):
     __tablename__ = "users"
@@ -329,17 +344,20 @@ class AppointmentModel(Base):
     __tablename__ = "appointments"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    address: Mapped[str]
     date: Mapped[date]
     start_time: Mapped[time]
     end_time: Mapped[time]
     price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id", ondelete="CASCADE"))
 
+
     # Relationships
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="appointments")
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="appointments")
     price: Mapped["PriceModel"] = relationship("PriceModel", back_populates="appointments")
+
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -350,14 +368,16 @@ class AppointmentModel(Base):
         return "success"
 
     @classmethod
-    async def get_by_master_and_date(cls, session: SessionDep, master_id: int, date: date) -> List['AppointmentModel']:
+    async def get_by_master_and_date(cls, session: SessionDep, master_ids: List[uuid.UUID], date: date):
         query = select(cls).where(
-            cls.master_id == master_id,
+            cls.master_id.in_(master_ids),
             cls.date == date
         ).order_by(cls.start_time)
         result = await session.execute(query)
         appointments = result.scalars().all()
-        return list(appointments)
+        if len(appointments)!=0:
+            return appointments, True
+        return [], False
 
     @classmethod
     async def delete(cls, session: SessionDep, id: uuid.UUID):
@@ -406,6 +426,20 @@ class PriceModel(Base):
         return price
 
     @classmethod
+    async def get_approx_time_by_id(cls, session: SessionDep, id: uuid.UUID):
+        query = select(cls.approximate_time).where(cls.id == id)
+        result = await session.execute(query)
+        approximate_time = result.scalar_one_or_none()
+        return approximate_time
+
+    @classmethod
+    async def get_org_id_by_id(cls, session: SessionDep, id: uuid.UUID):
+        query = select(cls.organization_id).where(cls.id == id)
+        result = await session.execute(query)
+        org_id = result.scalar_one_or_none()
+        return org_id
+
+    @classmethod
     async def create(cls, session: SessionDep, data: dict):
         price = cls(**data)
         session.add(price)
@@ -437,13 +471,6 @@ class PriceModel(Base):
             return "success"
         return "no such id price"
 
-    @classmethod
-    async def delete_prices_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
-        # Теперь это происходит автоматически через каскад
-        # Но оставим для обратной совместимости
-        query = delete(cls).where(cls.organization_id == org_id)
-        await session.execute(query)
-        return "success"
 
 class IndividualPricesModel(Base):
     __tablename__ = "individual_prices"

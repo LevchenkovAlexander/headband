@@ -1,7 +1,8 @@
 import uuid
+from datetime import time, date
 from typing import List, Dict, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class StatusResponse(BaseModel):
@@ -16,12 +17,25 @@ class OrganizationResponse(IDResponse):
 
 class AppointmentListResponse(StatusResponse):
     count: int = 0
-    appointments: List[Dict[str, Any]] = []
+    appointments: List[Dict] = []
 
 class PossibleTimesResponse(StatusResponse):
-    times: List[str] = []
+    times: List[time] = []
 
 class WeekTimetableResponse(StatusResponse):
     week_appointments: List[List[Dict[str, Any]]] = []
+
+
+class AppointmentResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    master_id: uuid.UUID
+    address: str
+    date: date
+    start_time: time
+    end_time: time
+    price_id: uuid.UUID
+
+    model_config = ConfigDict(from_attributes=True)
 
 
