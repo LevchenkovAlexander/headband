@@ -141,7 +141,7 @@ async def create_master(user: User, chat: Chat, organization_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
         organization = await OrganizationModel.get_org_by_id(session=session, id = organization_id)
-        master = MasterCreateRequest(id=chat.id,
+        master = MasterCreateRequest(chat_id=chat.id,
                                      organization_id=organization_id,
                                      username=user.username,
                                      working_day_start=organization.day_start_template,
@@ -157,10 +157,21 @@ async def create_master(user: User, chat: Chat, organization_id: uuid.UUID):
     finally:
         await session.close()
 
+async def get_categories(org_id: uuid.UUID):
+    session = AsyncSessionLocal()
+    try:
+        return OrganizationModel.get_categories(session=session, id=org_id)
+    except Exception as e:
+        await session.rollback()
+        logging.info(f"Error getting ids: {e}")
+        return  None, False
+    finally:
+        await session.close()
+
 async def create_user(user: User, chat: Chat, organization_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
-        user = UserCreateRequest(id=chat.id,
+        user = UserCreateRequest(chat_id=chat.id,
                                  organization_id=organization_id,
                                  username=user.username)
         if await UserModel.create(session=session, data=user.model_dump()):
@@ -302,7 +313,7 @@ async def user_master_deeplink(args: str):
         master_res, master_status = await OrganizationModel.get_by_master_unique(session=session, unique_code=args)
         user_res, user_status = await OrganizationModel.get_by_user_unique(session=session, unique_code=args)
         logging.info(f"user_res {user_res}")
-        logging.info(f"master_res {user_res}")
+        logging.info(f"master_res {master_res}")
         if master_status:
             return 0, master_res
         elif user_status:

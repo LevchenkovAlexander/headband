@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional
 
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, update, delete
+from sqlalchemy import ForeignKey, select, update, delete, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, date
@@ -22,11 +22,26 @@ AsyncSessionLocal = async_sessionmaker(
 
 SessionDep = AsyncSession
 
+
 async def setup_database():
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+            """tables_result = await conn.execute(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            )
+            tables = [row[0] for row in tables_result.fetchall()]
+
+            await conn.execute(text("SET CONSTRAINTS ALL DEFERRED"))
+
+            for table in tables:
+                try:
+                    await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+                    logging.info(f"Таблица {table} удалена")
+                except Exception as e:
+                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")"""
+
             await conn.run_sync(Base.metadata.create_all)
+
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
             logging.info(f"Таблицы в базе данных: {tables}")
             return True
@@ -117,7 +132,6 @@ class OrganizationModel(Base):
     address: Mapped[str]
     description: Mapped[str] = mapped_column(default="no info")
     categories: Mapped[str]
-    fixed_schedule: Mapped[bool]
     fixed_prices: Mapped[bool]
     day_start_template: Mapped[time]
     day_end_template: Mapped[time]
@@ -202,10 +216,13 @@ class OrganizationModel(Base):
         ids = [row[0] for row in result.fetchall()]
         return ids
 
+
+
 class MasterModel(Base):
     __tablename__ = "masters"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chat_id: Mapped[int]
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE")
     )
@@ -271,7 +288,8 @@ class MasterModel(Base):
 class UserModel(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chat_id: Mapped[int]
     username: Mapped[Optional[str]]
     organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL")

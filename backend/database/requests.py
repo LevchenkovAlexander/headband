@@ -1,8 +1,9 @@
 import uuid
-from datetime import time, datetime, date
-from typing import Optional, Dict, List
-import re
-from pydantic import BaseModel, validator, field_validator, EmailStr
+from datetime import time, date
+from typing import Optional
+from pydantic import BaseModel, field_validator, EmailStr
+
+
 
 class IDRequest(BaseModel):
     id: uuid.UUID
@@ -16,14 +17,15 @@ class AppointmentCreateRequest(BaseModel):
     price_id: uuid.UUID
 
 class MasterUpdateRequest(BaseModel):
-    id: int
+    id: uuid.UUID
+    chat_id: int
     full_name: Optional[str] = None
     working_day_start: Optional[time] = None
     working_day_end: Optional[time] = None
     day_off: Optional[str] = None
 
 class MasterCreateRequest(BaseModel):
-    id: int
+    chat_id: int
     organization_id: uuid.UUID
     username: Optional[str] = "no info"
     full_name: Optional[str] = "no info"
@@ -32,7 +34,7 @@ class MasterCreateRequest(BaseModel):
     day_off: Optional[str]
 
 class UserCreateRequest(BaseModel):
-    id: int
+    chat_id: int
     organization_id: uuid.UUID
     username: Optional[str] = None
 
@@ -54,13 +56,28 @@ class OrganizationUpdateRequest(BaseModel):
     address: Optional[str] = None
     description: Optional[str] = None
     categories: Optional[str] = None
-    fixed_schedule: Optional[bool] = None
     fixed_prices: Optional[bool] = None
     day_start_template: Optional[time] = None
     day_end_template: Optional[time] = None
     day_off: Optional[str] = None
     admin_id: uuid.UUID
 
+    @field_validator('categories')
+    @classmethod
+    def validate_unique_digits(cls, v: str) -> str:
+        if not v:
+            raise ValueError('Строка не может быть пустой')
+        if not v.isdigit():
+            raise ValueError('Строка должна содержать только цифры')
+
+        if not all('1' <= char <= '9' for char in v):
+            raise ValueError('Разрешены только цифры от 1 до 9')
+        seen = set()
+        for char in v:
+            if char in seen:
+                raise ValueError(f'Цифра {char} повторяется')
+            seen.add(char)
+        return v
 class PriceUpdateRequest(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
@@ -76,6 +93,8 @@ class PriceCreateRequest(BaseModel):
     name: str
     approximate_time: time
     price: int
+
+
 
 class AdminCreateRequest(BaseModel):
     email: EmailStr
