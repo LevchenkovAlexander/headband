@@ -7,7 +7,7 @@ import uuid
 from aiogram.types import User, Chat
 
 from headband.backend.database import AppointmentModel, MasterModel, Week, UserModel, \
-    OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel, IndvidualPricesModel
+    OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel
 
 
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \

@@ -65,9 +65,9 @@ class PriceUpdateRequest(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     name: Optional[str] = None
-    price: Optional[str] = None
-    category: Optional[str] = None
-    approximate_time: Optional[str] = None
+    price: Optional[int] = None
+    category: Optional[int] = None
+    approximate_time: Optional[time] = None
 
 
 class PriceCreateRequest(BaseModel):
