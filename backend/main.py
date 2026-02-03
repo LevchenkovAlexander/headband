@@ -68,21 +68,30 @@ async def cancel_appointment(id: IDRequest):
 @app.get("/masters/appointments/today/", tags=["Master"], response_model=AppointmentListResponse)
 async def get_today_appointments(master_id: int):
     today = date.today()
-    appointments, count, status = await db_functions.get_appointments_by_date(master_id, today)
+    appointments, count, status, addresses = await db_functions.get_appointments_by_date(master_id, today)
+    a = []
+    for i, appointment in enumerate(appointments):
+        aresponse = AppointmentResponse.model_validate(appointment).model_dump()
+        aresponse["address"] = addresses[i]
+        a.append(aresponse)
     return {
         "status": status,
         "count": count,
-        "appointments": [AppointmentResponse.model_validate(a).model_dump() for a in appointments] if appointments else []
+        "appointments": a
     }
 
 @app.get("/masters/appointments/", tags=["Master"], response_model=AppointmentListResponse)
 async def get_appointments_by_date(master_id: int, date: date):
-    appointments, count, status = await db_functions.get_appointments_by_date(master_id, date)
-
+    appointments, count, status, addresses = await db_functions.get_appointments_by_date(master_id, date)
+    a = []
+    for i, appointment in enumerate(appointments):
+        aresponse = AppointmentResponse.model_validate(appointment).model_dump()
+        aresponse["address"] = addresses[i]
+        a.append(aresponse)
     return {
         "status": status,
         "count": count,
-        "appointments": [AppointmentResponse.model_validate(a).model_dump() for a in appointments] if appointments else []
+        "appointments": a
     }
 
 @app.get("/masters/appointments/week/", tags=["Master"], response_model=WeekTimetableResponse)

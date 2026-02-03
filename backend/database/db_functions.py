@@ -35,8 +35,7 @@ async def get_possible_start_time(master_id, date, price_id):
             id.append(master_id)
             #так как здесь мы работаем в рамках одной организации,
             #нам не за чем знать его записей в других
-            appointments = await AppointmentModel.get_by_master_and_date(session = session, master_ids=id, date=date)
-
+            appointments, status = await AppointmentModel.get_by_master_and_date(session = session, master_ids=id, date=date)
             day_start = master.working_day_start
             day_end = master.working_day_end
             start_time = []
@@ -77,13 +76,19 @@ async def get_appointments_by_date(master_chat_id, date):
     try:
         ids = await MasterModel.get_ids_by_chat_id(session=session, chat_id=master_chat_id)
         appointments, flag = await AppointmentModel.get_by_master_and_date(session = session, master_ids=ids, date=date)
+        adresses = []
+        for a in appointments:
+            price_id = a.price_id
+            org_id = await PriceModel.get_org_id_by_id(session=session, id = price_id)
+            address = await OrganizationModel.get_address_by_id(session=session, id=org_id)
+            adresses.append(address)
         if flag:
-            return appointments, len(appointments), "success"
-        return None, 0, "no appointments today"
+            return appointments, len(appointments), "success", adresses
+        return [], 0, "no appointments today", []
     except Exception as e:
         await session.rollback()
         logging.info(f"Error getting appointments by date: {e}")
-        return None, 0, "error"
+        return [], 0, "error", []
     finally:
         await session.close()
 
@@ -93,8 +98,13 @@ async def get_week_timetable(master_id, date):
         week_list = _get_week_dates(date)
         week_appointments = []
         for day in week_list:
-            appointments, count, status = await get_appointments_by_date(master_id, day)
-            week_appointments.append([AppointmentResponse.model_validate(a).model_dump() for a in appointments] if appointments else [])
+            appointments, count, status, addresses = await get_appointments_by_date(master_id, day)
+            a = []
+            for i, appointment in enumerate(appointments):
+                aresponse = AppointmentResponse.model_validate(appointment).model_dump()
+                aresponse["address"] = addresses[i]
+                a.append(aresponse)
+            week_appointments.append(a)
         return week_appointments, "success"
     except Exception as e:
         await session.rollback()
@@ -107,10 +117,8 @@ async def create_appointment(appointment_request: AppointmentCreateRequest):
     session = AsyncSessionLocal()
     try:
         price = await PriceModel.get_price_by_id(session = session, id=appointment_request.price_id)
-        address = await OrganizationModel.get_address_by_id(session=session, id = price.organization_id)
         appointment_dict = appointment_request.model_dump()
         appointment_dict["end_time"] = _timedelta_to_time(_time_to_timedelta(appointment_dict["start_time"])+_time_to_timedelta(price.approximate_time))
-        appointment_dict["address"] = address
         status = await AppointmentModel.create(session = session, data=appointment_dict)
         return status
     except Exception as e:

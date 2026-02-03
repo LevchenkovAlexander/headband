@@ -65,22 +65,6 @@ class OrganizationUpdateRequest(BaseModel):
     day_off: Optional[str] = None
     admin_id: uuid.UUID
 
-    @field_validator('categories')
-    @classmethod
-    def validate_unique_digits(cls, v: str) -> str:
-        if not v:
-            raise ValueError('Строка не может быть пустой')
-        if not v.isdigit():
-            raise ValueError('Строка должна содержать только цифры')
-
-        if not all('1' <= char <= '9' for char in v):
-            raise ValueError('Разрешены только цифры от 1 до 9')
-        seen = set()
-        for char in v:
-            if char in seen:
-                raise ValueError(f'Цифра {char} повторяется')
-            seen.add(char)
-        return v
 class PriceUpdateRequest(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
