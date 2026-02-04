@@ -68,11 +68,12 @@ async def cancel_appointment(id: IDRequest):
 @app.get("/masters/appointments/today/", tags=["Master"], response_model=AppointmentListResponse)
 async def get_today_appointments(master_id: int):
     today = date.today()
-    appointments, count, status, addresses = await db_functions.get_appointments_by_date(master_id, today)
+    appointments, count, status, addresses, names = await db_functions.get_appointments_by_date(master_id, today)
     a = []
     for i, appointment in enumerate(appointments):
         aresponse = AppointmentResponse.model_validate(appointment).model_dump()
         aresponse["address"] = addresses[i]
+        aresponse["service_name"] = names[i]
         a.append(aresponse)
     return {
         "status": status,
@@ -82,11 +83,12 @@ async def get_today_appointments(master_id: int):
 
 @app.get("/masters/appointments/", tags=["Master"], response_model=AppointmentListResponse)
 async def get_appointments_by_date(master_id: int, date: date):
-    appointments, count, status, addresses = await db_functions.get_appointments_by_date(master_id, date)
+    appointments, count, status, addresses, names = await db_functions.get_appointments_by_date(master_id, date)
     a = []
     for i, appointment in enumerate(appointments):
         aresponse = AppointmentResponse.model_validate(appointment).model_dump()
         aresponse["address"] = addresses[i]
+        aresponse["service_name"] = names[i]
         a.append(aresponse)
     return {
         "status": status,

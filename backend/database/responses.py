@@ -36,6 +36,7 @@ class AppointmentResponse(BaseModel):
     end_time: time
     price_id: uuid.UUID
     address: Optional[str] = "no_info"
+    service_name: Optional[str] = "no_info"
 
     model_config = ConfigDict(from_attributes=True)
 

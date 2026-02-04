@@ -77,18 +77,21 @@ async def get_appointments_by_date(master_chat_id, date):
         ids = await MasterModel.get_ids_by_chat_id(session=session, chat_id=master_chat_id)
         appointments, flag = await AppointmentModel.get_by_master_and_date(session = session, master_ids=ids, date=date)
         adresses = []
+        names = []
         for a in appointments:
             price_id = a.price_id
+            name = await PriceModel.get_name_by_id(session=session, id=price_id)
             org_id = await PriceModel.get_org_id_by_id(session=session, id = price_id)
             address = await OrganizationModel.get_address_by_id(session=session, id=org_id)
             adresses.append(address)
+            names.append(name)
         if flag:
-            return appointments, len(appointments), "success", adresses
-        return [], 0, "no appointments today", []
+            return appointments, len(appointments), "success", adresses, names
+        return [], 0, "no appointments today", [], []
     except Exception as e:
         await session.rollback()
         logging.info(f"Error getting appointments by date: {e}")
-        return [], 0, "error", []
+        return [], 0, "error", [], []
     finally:
         await session.close()
 
@@ -98,11 +101,12 @@ async def get_week_timetable(master_id, date):
         week_list = _get_week_dates(date)
         week_appointments = []
         for day in week_list:
-            appointments, count, status, addresses = await get_appointments_by_date(master_id, day)
+            appointments, count, status, addresses, names = await get_appointments_by_date(master_id, day)
             a = []
             for i, appointment in enumerate(appointments):
                 aresponse = AppointmentResponse.model_validate(appointment).model_dump()
                 aresponse["address"] = addresses[i]
+                aresponse["service_name"] = names[i]
                 a.append(aresponse)
             week_appointments.append(a)
         return week_appointments, "success"
