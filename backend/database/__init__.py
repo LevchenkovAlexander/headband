@@ -290,6 +290,23 @@ class MasterModel(Base):
         ids = result.scalars().all()
         return list(ids)
 
+class SpecialOffersModel(Base):
+    __tablename__ = "specials"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    name: Mapped[str] = mapped_column(default="no info")
+    description: Mapped[str] = mapped_column(default="no info")
+
+
+    # Relationships
+    organization: Mapped["OrganizationModel"] = relationship(
+        "OrganizationModel",
+        back_populates="masters"
+    )
+
 class UserModel(Base):
     __tablename__ = "users"
 
