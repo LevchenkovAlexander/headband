@@ -20,6 +20,7 @@ const Login = () => {
           name="email"
           placeholder="Почта"
           required
+          autoComplete="username"
         />
 
         <label htmlFor="password"></label>
@@ -29,6 +30,7 @@ const Login = () => {
           name="password"
           placeholder="Пароль"
           required
+          autoComplete="current-password"
         />
 
         <div className="login__controls">
