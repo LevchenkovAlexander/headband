@@ -1,9 +1,19 @@
 import "./login.scss";
+
 import { Link } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { setAuth } from "../../../storage/authSlice";
 
 const Login = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
   const handleSumbit = (e: React.SyntheticEvent) => {
     e.preventDefault();
+    dispatch(setAuth(true));
+    localStorage.setItem('isAuth', 'true');
+    navigate('/profile');
   };
 
   return (
