@@ -2,7 +2,7 @@ import uuid
 from datetime import time, date
 from typing import List, Dict, Any, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class StatusResponse(BaseModel):
@@ -39,5 +39,40 @@ class AppointmentResponse(BaseModel):
     service_name: Optional[str] = "no_info"
 
     model_config = ConfigDict(from_attributes=True)
+class AdminResponseMasters(IDResponse):
+    username: str
+    full_name: str
+    working_day_start: time
+    working_day_end: time
+    day_off: str
+    categories: str
+
+class AdminResponseSpecialOffers(IDResponse):
+    organization_id: uuid.UUID
+    name: str
+    deadline_start: Optional[date]
+    deadline_end: Optional[date]
+
+class AdminResponseOrganizations(OrganizationResponse):
+    name: str
+    address: str
+    categories: str
+
+class AdminResponseInfo(IDResponse):
+    email: EmailStr
+    end_of_subscription: date
+    num_organizations: int
+    num_masters: int
+    num_users: int
+    organizations: List[Dict]
+    masters: List[Dict]
+    offers: List[Dict]
+
+
+
+
+
+
+
 
 

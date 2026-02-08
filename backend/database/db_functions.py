@@ -7,16 +7,19 @@ import uuid
 from aiogram.types import User, Chat
 
 from headband.backend.database import AppointmentModel, MasterModel, Week, UserModel, \
-    OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel
-
+    OrganizationModel, AsyncSessionLocal, PriceModel, AdminModel, SpecialOffersModel
 
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
     AdminUpdateRequest
-from headband.backend.database.responses import AppointmentResponse
+from headband.backend.database.responses import AppointmentResponse, AdminResponseOrganizations, AdminResponseMasters, \
+    AdminResponseSpecialOffers, AdminResponseInfo
 from headband.backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
     _get_week_dates, _timedelta_to_time
 from datetime import timedelta
+
+from headband.backend.telegram_bot import BOT_URL
+
 
 async def get_possible_start_time(master_id, date, price_id):
     """Получение возможного времени для записи"""
@@ -92,6 +95,91 @@ async def get_appointments_by_date(master_chat_id, date):
         await session.rollback()
         logging.info(f"Error getting appointments by date: {e}")
         return [], 0, "error", [], []
+    finally:
+        await session.close()
+
+async def get_admin_info(id):
+    session = AsyncSessionLocal()
+    try:
+        admin = await AdminModel.get_by_id(session=session, id=id)
+
+        #Получаем организации
+        organizations = await OrganizationModel.get_organizations_by_adm_id_full(session=session, adm_id=id)
+        org_ids = [org.id for org in organizations]
+        organizations_response = []
+        users_num = 0
+        masters_response = []
+        offers_response = []
+        master_chats = []
+        if len(organizations)>0:
+            for organization in organizations:
+                org_response = AdminResponseOrganizations(
+                    id=organization.id,
+                    status="success",
+                    tg_master=BOT_URL + organization.unique_code_master,
+                    tg_user=BOT_URL + organization.unique_code_user,
+                    name=organization.name,
+                    address=organization.address,
+                    categories=organization.categories
+                )
+                organizations_response.append(org_response.model_dump())
+            masters = await MasterModel.get_masters_by_org_ids_full(session=session, org_ids=org_ids)
+            master_chats = [master.chat_id for master in masters]
+            if len(masters) > 0:
+                for master in masters:
+                    master_response = AdminResponseMasters(
+                        id=master.id,
+                        status="success",
+                        username=master.username,
+                        full_name=master.full_name,
+                        working_day_start=master.working_day_start,
+                        working_day_end=master.working_day_end,
+                        day_off=master.day_off,
+                        categories=master.categories
+                    )
+                    masters_response.append(master_response.model_dump())
+            else:
+                masters_response.append({"status": "no elements"})
+
+            offers = await SpecialOffersModel.get_offers_by_org_ids_full(session=session, org_ids=org_ids)
+            if len(offers) > 0:
+                for offer in offers:
+                    offer_response = AdminResponseSpecialOffers(
+                        id=offer.id,
+                        status="success",
+                        organization_id=offer.organization_id,
+                        name=offer.name,
+                        deadline_start=offer.deadline_start,
+                        deadline_end=offer.deadline_end
+                    )
+                    offers_response.append(offer_response.model_dump())
+            else:
+                offers_response.append({"status": "no elements"})
+            users_num += await UserModel.get_users_num_by_org_ids(session=session, org_ids=org_ids)
+
+        else:
+            organizations_response.append({"status": "no elements"})
+            masters_response.append({"status": "no elements"})
+            offers_response.append({"status": "no elements"})
+
+
+        response = AdminResponseInfo(
+            id=admin.id,
+            status="success",
+            email=admin.email,
+            end_of_subscription=admin.end_of_subscription,
+            num_organizations=len(organizations),
+            num_masters=len(set(master_chats)),
+            num_users=users_num,
+            organizations=organizations_response,
+            masters=masters_response,
+            offers=offers_response
+        )
+        return response
+    except Exception as e:
+        await session.rollback()
+        logging.info(f"Error getting admin_info: {e}")
+        return None
     finally:
         await session.close()
 
@@ -265,7 +353,7 @@ async def create_admin(adm_request: AdminCreateRequest):
         return status, adm_id
     except Exception as e:
         await session.rollback()
-        logging.info(f"Error creating appointment: {e}")
+        logging.info(f"Error creating admin: {e}")
         return "error", 0
     finally:
         await session.close()

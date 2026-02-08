@@ -14,7 +14,8 @@ from headband.backend.database.requests import MasterUpdateRequest, AppointmentC
     AdminCreateRequest, OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, PriceUpdateRequest, \
     AdminUpdateRequest, IDRequest, PossibleTimeRequest
 from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
-    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse, AppointmentResponse
+    AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse, AppointmentResponse, \
+    AdminResponseInfo
 from headband.backend.telegram_bot import BOT_URL, bot_main
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
@@ -115,7 +116,7 @@ async def update_master_profile(update_data: MasterUpdateRequest):
 @app.post("/admins/create_organization", tags=["Admin"], response_model=OrganizationResponse)
 async def create_organization(org_info: OrganizationCreateRequest):
     status, master, user, org_id = await db_functions.create_organization(org_info)
-    tg_master_link = BOT_URL+master
+    tg_master_link = BOT_URL + master
     tg_user_link = BOT_URL + user
     return {"status": status,
             "tg_master": tg_master_link,
@@ -130,6 +131,7 @@ async def update_organization(update_data: OrganizationUpdateRequest):
 async def delete_organization(id_request: IDRequest):
     status = await db_functions.delete_organization(delete_id=id_request.id)
     return {"status": status}
+
 @app.post("/admins/create_price_position", tags=["Admin"], response_model=IDResponse)
 async def create_price(price_position: PriceCreateRequest):
     status, id = await db_functions.create_price_position(price_position=price_position)
@@ -156,6 +158,11 @@ async def create_admin(adm_request: AdminCreateRequest):
 async def update_admin(update_data: AdminUpdateRequest):
     status = await db_functions.update_admin(update_data=update_data)
     return {"status": status}
+
+@app.get("/admins/cabinet", tags=["Admin"], response_model=AdminResponseInfo)
+async def get_admin_info(admin_id: uuid.UUID):
+    response = await db_functions.get_admin_info(id = admin_id)
+    return response
 
 
 def run_bot_process():

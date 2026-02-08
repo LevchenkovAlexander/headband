@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional
 
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, update, delete, text
+from sqlalchemy import ForeignKey, select, update, delete, text, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, date
@@ -72,6 +72,8 @@ class AdminModel(Base):
     email: Mapped[str] = mapped_column(unique=True, index=True)
     password: Mapped[str]
     yaToken: Mapped[Optional[str]]
+    subscription: Mapped[int]
+    end_of_subscription: Mapped[Optional[date]] = mapped_column(default=None)
 
     # Relationships
     organizations: Mapped[List["OrganizationModel"]] = relationship(
@@ -80,6 +82,13 @@ class AdminModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+
+    @classmethod
+    async def get_by_id(cls, session: SessionDep, id: uuid.UUID):
+        query = select(cls).where(cls.id == id)
+        result = await session.execute(query)
+        admin = result.scalar_one_or_none()
+        return admin
 
     @classmethod
     async def create(cls, session: SessionDep, data: dict):
@@ -149,6 +158,12 @@ class OrganizationModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+    specials: Mapped[List["SpecialOffersModel"]] = relationship(
+        "SpecialOffersModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def get_org_by_id(cls, session: SessionDep, id: uuid.UUID):
@@ -204,6 +219,12 @@ class OrganizationModel(Base):
         result = await session.execute(query)
         ids = [row[0] for row in result.fetchall()]
         return ids
+
+    @classmethod
+    async def get_organizations_by_adm_id_full(cls, session: SessionDep, adm_id: uuid.UUID):
+        query = select(cls).where(cls.admin_id == adm_id)
+        result = await session.execute(query)
+        return result.scalars().all()
 
     @classmethod
     async def get_address_by_id(cls, session: SessionDep, id: uuid.UUID):
@@ -268,6 +289,12 @@ class MasterModel(Base):
         return ids
 
     @classmethod
+    async def get_masters_by_org_ids_full(cls, session: SessionDep, org_ids: List[uuid.UUID]):
+        query = select(cls).where(cls.organization_id.in_(org_ids))
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
     async def update(cls, session: SessionDep, update_data: dict):
         obj_id = update_data.pop("id", None)
         if not obj_id:
@@ -299,13 +326,20 @@ class SpecialOffersModel(Base):
     )
     name: Mapped[str] = mapped_column(default="no info")
     description: Mapped[str] = mapped_column(default="no info")
-
+    deadline_start: Mapped[Optional[date]]
+    deadline_end: Mapped[Optional[date]]
 
     # Relationships
     organization: Mapped["OrganizationModel"] = relationship(
         "OrganizationModel",
-        back_populates="masters"
+        back_populates="specials"
     )
+
+    @classmethod
+    async def get_offers_by_org_ids_full(cls, session: SessionDep, org_ids: List[uuid.UUID]):
+        query = select(cls.id).where(cls.organization_id.in_(org_ids))
+        result = await session.execute(query)
+        return result.scalars().all()
 
 class UserModel(Base):
     __tablename__ = "users"
@@ -338,14 +372,12 @@ class UserModel(Base):
         return True
 
     @classmethod
-    async def delete_of_org(cls, session: SessionDep, org_id: uuid.UUID):
-        # Теперь это будет происходить автоматически через ondelete="SET NULL"
-        # Но оставим метод для обратной совместимости
-        stmt = update(cls).where(cls.organization_id == org_id).values(
-            {"organization_id": None}
-        )
-        await session.execute(stmt)
-        return "success"
+    async def get_users_num_by_org_ids(cls, session:SessionDep, org_ids: List[uuid.UUID]):
+        users_count_query = select(func.count(cls.id)).where(cls.organization_id.in_(org_ids))
+        users_count_result = await session.execute(users_count_query)
+        return users_count_result.scalar() or 0
+
+
 
 class AppointmentModel(Base):
     __tablename__ = "appointments"
@@ -488,7 +520,7 @@ class IndividualPricesModel(Base):
     __tablename__ = "individual_prices"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
     price_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prices.id", ondelete="CASCADE"))
     new_price: Mapped[int]
 
