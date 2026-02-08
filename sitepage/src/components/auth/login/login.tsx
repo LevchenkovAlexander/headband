@@ -1,9 +1,19 @@
 import "./login.scss";
+
 import { Link } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { setAuth } from "../../../storage/authSlice";
 
 const Login = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
   const handleSumbit = (e: React.SyntheticEvent) => {
     e.preventDefault();
+    dispatch(setAuth(true));
+    localStorage.setItem('isAuth', 'true');
+    navigate('/profile');
   };
 
   return (
@@ -20,6 +30,7 @@ const Login = () => {
           name="email"
           placeholder="Почта"
           required
+          autoComplete="username"
         />
 
         <label htmlFor="password"></label>
@@ -29,6 +40,7 @@ const Login = () => {
           name="password"
           placeholder="Пароль"
           required
+          autoComplete="current-password"
         />
 
         <div className="login__controls">

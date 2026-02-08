@@ -57,7 +57,7 @@ const HomePage = () => {
     <div className="main">
       <div className="header">
         <div className="header__title">headband</div>
-        <Link type="button" className="header__support" to="/authorization">
+        <Link type="button" className="header__support" to="/profile">
           Войти в аккаунт
         </Link>
       </div>
@@ -153,7 +153,7 @@ const HomePage = () => {
               <SpisokText text="бесплатный ИИ инструмент для примерки прически" />
               <SpisokText text="возможность связи с 2GIS и др. для отображения отзывов" />
             </div>
-            <Link type="button" className="price__btn" to="#">
+            <Link type="button" className="price__btn" to="/form-to-create-org">
               Оформить
             </Link>
           </div>
