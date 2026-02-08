@@ -350,10 +350,11 @@
 
   &__actions {
     text-align: end;
+    align-self: end;
     margin-top: 15px;
     font-size: 20px;
     border-bottom: 1px black solid;
-    padding-bottom: 15px;
+    padding-bottom: 10px;
   }
 
   &__address,
