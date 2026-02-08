@@ -6,7 +6,7 @@ import AuthTemplate from "../auth/auth";
 import Login from "../auth/login/login";
 import Register from "../auth/register/register";
 import Organization from "../form-to-create/organization/organization";
-import Profile from "../profile/profile";
+import Cabinet from "../cabinet/cabinet";
 import ProtectedRoute from "./ProtectedRoute";
 import GuestRoute from "./GuestRoute";
 
@@ -16,10 +16,10 @@ const App = () => {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route
-          path="/profile"
+          path="/cabinet"
           element={
             <ProtectedRoute>
-              <Profile />
+              <Cabinet />
             </ProtectedRoute>
           }
         />
