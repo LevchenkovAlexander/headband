@@ -326,8 +326,8 @@ class SpecialOffersModel(Base):
     )
     name: Mapped[str] = mapped_column(default="no info")
     description: Mapped[str] = mapped_column(default="no info")
-    deadline_start: Mapped[Optional[date]]
-    deadline_end: Mapped[Optional[date]]
+    deadline_start: Mapped[Optional[date]] = mapped_column(nullable=True)
+    deadline_end: Mapped[Optional[date]] = mapped_column(nullable=True)
 
     # Relationships
     organization: Mapped["OrganizationModel"] = relationship(
@@ -337,9 +337,41 @@ class SpecialOffersModel(Base):
 
     @classmethod
     async def get_offers_by_org_ids_full(cls, session: SessionDep, org_ids: List[uuid.UUID]):
-        query = select(cls.id).where(cls.organization_id.in_(org_ids))
+        query = select(cls).where(cls.organization_id.in_(org_ids))
         result = await session.execute(query)
         return result.scalars().all()
+
+    @classmethod
+    async def create(cls, session: SessionDep, data: dict):
+        offer = cls(**data)
+        session.add(offer)
+        await session.commit()
+        await session.refresh(offer)
+        return "success", offer.id
+
+    @classmethod
+    async def update(cls, session: SessionDep, update_data: dict):
+        obj_id = update_data.pop("id", None)
+        if not obj_id:
+            logging.error(ValueError("ID is required for update"))
+            return "ID is required for update"
+
+        query = (
+            update(cls)
+            .where(cls.id == obj_id)
+            .values(**update_data))
+        await session.execute(query)
+        await session.commit()
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: SessionDep, id: uuid.UUID):
+        obj = await session.get(cls, id)
+        if obj:
+            await session.delete(obj)
+            await session.commit()
+            return "success"
+        return "no such id offer"
 
 class UserModel(Base):
     __tablename__ = "users"

@@ -81,8 +81,6 @@ class PriceCreateRequest(BaseModel):
     approximate_time: time
     price: int
 
-
-
 class AdminCreateRequest(BaseModel):
     email: EmailStr
     password: str
@@ -96,3 +94,17 @@ class AdminUpdateRequest(BaseModel):
     yaToken: Optional[str] = None
     subscription: Optional[int] = None
     end_of_subscription: Optional[date] = None
+
+class OfferCreateRequest(BaseModel):
+    organization_id: uuid.UUID
+    name: str
+    description: str
+    deadline_start: Optional[date] = None
+    deadline_end: Optional[date] = None
+
+class OfferUpdateRequest(BaseModel):
+    id: uuid.UUID
+    name: Optional[str] = None
+    description: Optional[str] = None
+    deadline_start: Optional[date] = None
+    deadline_end: Optional[date] = None

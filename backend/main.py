@@ -12,7 +12,7 @@ from headband.backend import database as db
 from headband.backend.database import db_functions
 from headband.backend.database.requests import MasterUpdateRequest, AppointmentCreateRequest, \
     AdminCreateRequest, OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, PriceUpdateRequest, \
-    AdminUpdateRequest, IDRequest, PossibleTimeRequest
+    AdminUpdateRequest, IDRequest, PossibleTimeRequest, OfferCreateRequest, OfferUpdateRequest
 from headband.backend.database.responses import PossibleTimesResponse, StatusResponse, \
     AppointmentListResponse, WeekTimetableResponse, OrganizationResponse, IDResponse, AppointmentResponse, \
     AdminResponseInfo
@@ -46,7 +46,12 @@ app = FastAPI()
 """rest запросы"""
 @app.post("/appointments/", tags=["User"], response_model=StatusResponse)
 async def create_appointment(appointment: AppointmentCreateRequest):
-    status = await db_functions.create_appointment(appointment)
+    poss_times_dict = await get_possible_start_times(master_id=appointment.master_id, appointment_date=appointment.date, price_id=appointment.price_id)
+    poss_times = poss_times_dict["times"]
+    if appointment.start_time in poss_times():
+        status = await db_functions.create_appointment(appointment)
+    else:
+        status = "time is already taken"
     return {"status": status}
 
 
@@ -164,6 +169,21 @@ async def get_admin_info(admin_id: uuid.UUID):
     response = await db_functions.get_admin_info(id = admin_id)
     return response
 
+@app.post("/admins/create_offer/", tags=["Admin"], response_model=IDResponse)
+async def create_offer(off_request: OfferCreateRequest):
+    status, offer_id = await db_functions.create_offer(off_request)
+    return {"status": status,
+            "id": offer_id}
+
+@app.patch("/admins/update_offer", tags=["Admin"], response_model=StatusResponse)
+async def update_offer(update_data: OfferUpdateRequest):
+    status = await db_functions.update_offer(update_data=update_data)
+    return {"status": status}
+
+@app.delete("/admins/delete_offer", tags=["Admin"], response_model=StatusResponse)
+async def delete_offer(id_request: IDRequest):
+    status = await db_functions.delete_offer(delete_id=id_request.id)
+    return {"status": status}
 
 def run_bot_process():
     """Запуск бота в отдельном процессе"""

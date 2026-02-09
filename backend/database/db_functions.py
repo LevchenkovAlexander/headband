@@ -11,7 +11,7 @@ from headband.backend.database import AppointmentModel, MasterModel, Week, UserM
 
 from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
-    AdminUpdateRequest
+    AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest
 from headband.backend.database.responses import AppointmentResponse, AdminResponseOrganizations, AdminResponseMasters, \
     AdminResponseSpecialOffers, AdminResponseInfo
 from headband.backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
@@ -265,7 +265,6 @@ async def create_master(user: User, chat: Chat, organization_id: uuid.UUID):
     finally:
         await session.close()
 
-
 async def create_user(user: User, chat: Chat, organization_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
@@ -312,7 +311,6 @@ async def update_organization(update_data: OrganizationUpdateRequest):
     finally:
         await session.close()
 
-
 async def delete_organization(delete_id: uuid.UUID):
     session = AsyncSessionLocal()
     try:
@@ -330,8 +328,6 @@ async def delete_organization(delete_id: uuid.UUID):
         await session.close()
 
 """admin fetches"""
-
-
 async def update_admin(update_data: AdminUpdateRequest):
     session = AsyncSessionLocal()
     try:
@@ -371,6 +367,7 @@ async def create_price_position(price_position: PriceCreateRequest):
         return "error", 0
     finally:
         await session.close()
+
 async def update_price(update_data: PriceUpdateRequest):
     session = AsyncSessionLocal()
     try:
@@ -383,7 +380,6 @@ async def update_price(update_data: PriceUpdateRequest):
         return "error"
     finally:
         await session.close()
-
 
 async def delete_price(delete_id: uuid.UUID):
     session = AsyncSessionLocal()
@@ -404,6 +400,45 @@ async def delete_price(delete_id: uuid.UUID):
         await session.close()
 
 
+async def create_offer(offer: OfferCreateRequest):
+    session = AsyncSessionLocal()
+    try:
+        price_dict = offer.model_dump()
+        status, id = await SpecialOffersModel.create(session=session, data=price_dict)
+        return status, id
+    except Exception as e:
+        await session.rollback()
+        logging.info(f"Error creating offer: {e}")
+        return "error", 0
+    finally:
+        await session.close()
+
+
+async def update_offer(update_data: OfferUpdateRequest):
+    session = AsyncSessionLocal()
+    try:
+        off_to_upd = update_data.model_dump(exclude_unset=True)
+        status = await SpecialOffersModel.update(session=session, update_data=off_to_upd)
+        return status
+    except Exception as e:
+        await session.rollback()
+        logging.info(f'Error updating offer: {e}')
+        return "error"
+    finally:
+        await session.close()
+
+
+async def delete_offer(delete_id: uuid.UUID):
+    session = AsyncSessionLocal()
+    try:
+        status = await SpecialOffersModel.delete(session=session, id=delete_id)
+        return status
+    except Exception as e:
+        await session.rollback()
+        logging.error(f'Error deleting offer: {e}')
+        return "error"
+    finally:
+        await session.close()
 
 async def user_master_deeplink(args: str):
     session = AsyncSessionLocal()
