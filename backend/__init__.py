@@ -1,16 +1,37 @@
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
-from dotenv import load_dotenv
+from fastapi import FastAPI
 
 from headband.backend import database as db
-from headband.backend.api import app
+
 from headband.backend.database import AsyncSessionLocal
 from headband.backend.telegram_bot import bot_main
 
-load_dotenv()
+app = FastAPI(
+    title="Headband API",
+    description="API для сервиса записи в салоны красоты",
+    version="1.0.0",
+    openapi_tags=[
+        {
+            "name": "User",
+            "description": "Операции для клиентов (пользователей)"
+        },
+        {
+            "name": "Master",
+            "description": "Операции для мастеров"
+        },
+        {
+            "name": "Admin",
+            "description": "Административные операции"
+        }
+    ]
+)
+
+
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
 @asynccontextmanager

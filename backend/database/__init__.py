@@ -14,7 +14,7 @@ from sqlalchemy import inspect
 
 
 
-db_address = os.getenv('DB_ADRESS')
+db_address = os.getenv('DB_ADDRESS')
 engine = create_async_engine(db_address)
 
 AsyncSessionLocal = async_sessionmaker(
@@ -23,7 +23,7 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
-SessionDep = AsyncSession
+AsyncSession = AsyncSession
 
 
 async def setup_database():
@@ -87,43 +87,31 @@ class AdminModel(Base):
     )
 
     @classmethod
-    async def get_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls).where(cls.id == id)
         result = await session.execute(query)
-        admin = result.scalar_one_or_none()
-        return admin
+        return result.scalar_one_or_none()
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict) -> uuid.UUID:
         admin = cls(**data)
         session.add(admin)
-        await session.commit()
-        await session.refresh(admin)
-        return "success", admin.id
+        await session.flush()
+        return admin.id
 
     @classmethod
-    async def update(cls, session: SessionDep, update_data: dict):
-        obj_id = update_data.pop("id", None)
-        if not obj_id:
-            logging.error(ValueError("ID is required for update"))
-            return "ID is required for update"
-
+    async def update(cls, session: AsyncSession, obj_id: uuid.UUID, update_data: dict):
         query = (
             update(cls)
             .where(cls.id == obj_id)
-            .values(**update_data))
+            .values(**update_data)
+        )
         await session.execute(query)
-        await session.commit()
-        return "success"
 
     @classmethod
-    async def delete(cls, session: SessionDep, id: uuid.UUID):
-        obj = await session.get(cls, id)
-        if obj:
-            await session.delete(obj)
-            await session.commit()
-            return "success"
-        return "no such id admin"
+    async def delete(cls, session: AsyncSession, id: uuid.UUID):
+        query = delete(cls).where(cls.id == id)
+        await session.execute(query)
 
 class OrganizationModel(Base):
     __tablename__ = "organizations"
@@ -169,14 +157,14 @@ class OrganizationModel(Base):
     )
 
     @classmethod
-    async def get_org_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_org_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         org = result.scalar_one_or_none()
         return org
 
     @classmethod
-    async def get_by_master_unique(cls, session: SessionDep, unique_code: str):
+    async def get_by_master_unique(cls, session: AsyncSession, unique_code: str):
         query = select(cls).where(cls.unique_code_master == unique_code)
         result = await session.execute(query)
         organization = result.scalar_one_or_none()
@@ -185,7 +173,7 @@ class OrganizationModel(Base):
         return None, False
 
     @classmethod
-    async def get_by_user_unique(cls, session: SessionDep, unique_code: str):
+    async def get_by_user_unique(cls, session: AsyncSession, unique_code: str):
         query = select(cls).where(cls.unique_code_user == unique_code)
         result = await session.execute(query)
         organization = result.scalar_one_or_none()
@@ -194,15 +182,14 @@ class OrganizationModel(Base):
         return None, False
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict):
         org = cls(**data)
         session.add(org)
-        await session.commit()
-        await session.refresh(org)
+        await session.flush()
         return "success", org.id
 
     @classmethod
-    async def update(cls, session: SessionDep, update_data: dict):
+    async def update(cls, session: AsyncSession, update_data: dict):
         obj_id = update_data.pop("id", None)
         if not obj_id:
             logging.error(ValueError("ID is required for update"))
@@ -217,20 +204,20 @@ class OrganizationModel(Base):
         return "success"
 
     @classmethod
-    async def get_organizations_by_adm_id(cls, session: SessionDep, adm_id: uuid.UUID):
+    async def get_organizations_by_adm_id(cls, session: AsyncSession, adm_id: uuid.UUID):
         query = select(cls.id).where(cls.admin_id == adm_id)
         result = await session.execute(query)
         ids = [row[0] for row in result.fetchall()]
         return ids
 
     @classmethod
-    async def get_organizations_by_adm_id_full(cls, session: SessionDep, adm_id: uuid.UUID):
+    async def get_organizations_by_adm_id_full(cls, session: AsyncSession, adm_id: uuid.UUID):
         query = select(cls).where(cls.admin_id == adm_id)
         result = await session.execute(query)
         return result.scalars().all()
 
     @classmethod
-    async def get_address_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_address_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls.address).where(cls.id == id)
         result = await session.execute(query)
         address = result.scalar_one_or_none()
@@ -270,35 +257,34 @@ class MasterModel(Base):
     )
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict):
         master = cls(**data)
         session.add(master)
-        await session.commit()
-        await session.refresh(master)
+        await session.flush()
         return True
 
     @classmethod
-    async def get_master_by_id(cls, session: SessionDep, id: uuid):
+    async def get_master_by_id(cls, session: AsyncSession, id: uuid):
         query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         master = result.scalar_one_or_none()
         return master
 
     @classmethod
-    async def get_masters_by_org_id(cls, session: SessionDep, org_id: uuid.UUID):
+    async def get_masters_by_org_id(cls, session: AsyncSession, org_id: uuid.UUID):
         query = select(cls.id).where(cls.organization_id == org_id)
         result = await session.execute(query)
         ids = [row[0] for row in result.fetchall()]
         return ids
 
     @classmethod
-    async def get_masters_by_org_ids_full(cls, session: SessionDep, org_ids: List[uuid.UUID]):
+    async def get_masters_by_org_ids_full(cls, session: AsyncSession, org_ids: List[uuid.UUID]):
         query = select(cls).where(cls.organization_id.in_(org_ids))
         result = await session.execute(query)
         return result.scalars().all()
 
     @classmethod
-    async def update(cls, session: SessionDep, update_data: dict):
+    async def update(cls, session: AsyncSession, update_data: dict):
         obj_id = update_data.pop("id", None)
         if not obj_id:
             logging.error(ValueError("ID is required for update"))
@@ -309,11 +295,10 @@ class MasterModel(Base):
             .where(cls.id == obj_id)
             .values(**update_data))
         await session.execute(query)
-        await session.commit()
         return "success"
 
     @classmethod
-    async def get_ids_by_chat_id(cls, session: SessionDep, chat_id: int):
+    async def get_ids_by_chat_id(cls, session: AsyncSession, chat_id: int):
         query = select(cls.id).where(
             cls.chat_id == chat_id)
         result = await session.execute(query)
@@ -339,21 +324,20 @@ class SpecialOffersModel(Base):
     )
 
     @classmethod
-    async def get_offers_by_org_ids_full(cls, session: SessionDep, org_ids: List[uuid.UUID]):
+    async def get_offers_by_org_ids_full(cls, session: AsyncSession, org_ids: List[uuid.UUID]):
         query = select(cls).where(cls.organization_id.in_(org_ids))
         result = await session.execute(query)
         return result.scalars().all()
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict):
         offer = cls(**data)
         session.add(offer)
-        await session.commit()
-        await session.refresh(offer)
+        await session.flush()
         return "success", offer.id
 
     @classmethod
-    async def update(cls, session: SessionDep, update_data: dict):
+    async def update(cls, session: AsyncSession, update_data: dict):
         obj_id = update_data.pop("id", None)
         if not obj_id:
             logging.error(ValueError("ID is required for update"))
@@ -364,15 +348,13 @@ class SpecialOffersModel(Base):
             .where(cls.id == obj_id)
             .values(**update_data))
         await session.execute(query)
-        await session.commit()
         return "success"
 
     @classmethod
-    async def delete(cls, session: SessionDep, id: uuid.UUID):
+    async def delete(cls, session: AsyncSession, id: uuid.UUID):
         obj = await session.get(cls, id)
         if obj:
             await session.delete(obj)
-            await session.commit()
             return "success"
         return "no such id offer"
 
@@ -399,7 +381,7 @@ class UserModel(Base):
     )
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict):
         user = cls(**data)
         session.add(user)
         await session.commit()
@@ -407,7 +389,7 @@ class UserModel(Base):
         return True
 
     @classmethod
-    async def get_users_num_by_org_ids(cls, session:SessionDep, org_ids: List[uuid.UUID]):
+    async def get_users_num_by_org_ids(cls, session:AsyncSession, org_ids: List[uuid.UUID]):
         users_count_query = select(func.count(cls.id)).where(cls.organization_id.in_(org_ids))
         users_count_result = await session.execute(users_count_query)
         return users_count_result.scalar() or 0
@@ -433,15 +415,14 @@ class AppointmentModel(Base):
 
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict):
         appointment = cls(**data)
         session.add(appointment)
-        await session.commit()
-        await session.refresh(appointment)
+        await session.flush()
         return "success"
 
     @classmethod
-    async def get_by_master_and_date(cls, session: SessionDep, master_ids: List[uuid.UUID], date: date):
+    async def get_by_master_and_date(cls, session: AsyncSession, master_ids: List[uuid.UUID], date: date):
         query = select(cls).where(
             cls.master_id.in_(master_ids),
             cls.date == date
@@ -453,11 +434,10 @@ class AppointmentModel(Base):
         return [], False
 
     @classmethod
-    async def delete(cls, session: SessionDep, id: uuid.UUID):
+    async def delete(cls, session: AsyncSession, id: uuid.UUID):
         appointment = await session.get(cls, id)
         if appointment:
             await session.delete(appointment)
-            await session.commit()
             return "success"
         return "no such id"
 
@@ -492,43 +472,42 @@ class PriceModel(Base):
     )
 
     @classmethod
-    async def get_price_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_price_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls).where(cls.id == id)
         result = await session.execute(query)
         price = result.scalar_one_or_none()
         return price
 
     @classmethod
-    async def get_name_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_name_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls.name).where(cls.id == id)
         result = await session.execute(query)
         name = result.scalar_one_or_none()
         return name
 
     @classmethod
-    async def get_approx_time_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_approx_time_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls.approximate_time).where(cls.id == id)
         result = await session.execute(query)
         approximate_time = result.scalar_one_or_none()
         return approximate_time
 
     @classmethod
-    async def get_org_id_by_id(cls, session: SessionDep, id: uuid.UUID):
+    async def get_org_id_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls.organization_id).where(cls.id == id)
         result = await session.execute(query)
         org_id = result.scalar_one_or_none()
         return org_id
 
     @classmethod
-    async def create(cls, session: SessionDep, data: dict):
+    async def create(cls, session: AsyncSession, data: dict):
         price = cls(**data)
         session.add(price)
-        await session.commit()
-        await session.refresh(price)
+        await session.flush()
         return "success", price.id
 
     @classmethod
-    async def update(cls, session: SessionDep, update_data: dict):
+    async def update(cls, session: AsyncSession, update_data: dict):
         obj_id = update_data.pop("id", None)
         if not obj_id:
             logging.error(ValueError("ID is required for update"))
@@ -539,15 +518,13 @@ class PriceModel(Base):
             .where(cls.id == obj_id)
             .values(**update_data))
         await session.execute(query)
-        await session.commit()
         return "success"
 
     @classmethod
-    async def delete(cls, session: SessionDep, id: uuid.UUID):
+    async def delete(cls, session: AsyncSession, id: uuid.UUID):
         obj = await session.get(cls, id)
         if obj:
             await session.delete(obj)
-            await session.commit()
             return "success"
         return "no such id price"
 
@@ -570,14 +547,14 @@ class IndividualPricesModel(Base):
     )
 
     @classmethod
-    async def organization_delete_price(cls, session: SessionDep, price_id: uuid.UUID):
+    async def organization_delete_price(cls, session: AsyncSession, price_id: uuid.UUID):
 
         query = delete(cls).where(cls.price_id == price_id)
         await session.execute(query)
         return "success"
 
     @classmethod
-    async def master_delete_price(cls, session: SessionDep, master_id: int):
+    async def master_delete_price(cls, session: AsyncSession, master_id: int):
 
         query = delete(cls).where(cls.master_id == master_id)
         await session.execute(query)

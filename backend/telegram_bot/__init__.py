@@ -2,25 +2,23 @@ import logging
 import os
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.dispatcher.filters.state import StatesGroup, State
-
-from headband.backend.database import db_functions
-
-#TODO в env конфид инфу
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 BOT_URL = os.getenv('BOT_URL')
+
+from headband.backend.database import db_functions, AsyncSession
+
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
 
-async def handle_deeplink(message: types.Message, args: str):
+async def handle_deeplink(message: types.Message, args: str, session: AsyncSession):
     user = message.from_user
     chat = message.chat
     logging.info(args)
-    user_category, res = await db_functions.user_master_deeplink(args)
+    user_category, res = await db_functions.user_master_deeplink(args=args, session=session)
     if user_category == 0:
-        status = await db_functions.create_master(user, chat, res)
+        status = await db_functions.create_master(user=user, chat=chat, organization_id=res, session=session)
         logging.info(f"{status} master with id {chat.id}")
         if status.__eq__("error"):
             return "Создать мастера не получилось"

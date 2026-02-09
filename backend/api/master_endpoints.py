@@ -1,16 +1,19 @@
 from datetime import date
 
-from fastapi import Depends
+from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from headband.backend import get_db_session
-from headband.backend.api import app
 from headband.backend.database import db_functions
 from headband.backend.database.requests import MasterUpdateRequest
 from headband.backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse
 
+router = APIRouter(
+    prefix="/masters",
+    tags=["Master"]
+)
 
-@app.get("/masters/appointments/today/", tags=["Master"], response_model=AppointmentListResponse)
+@router.get("/appointments/today/", response_model=AppointmentListResponse)
 async def get_today_appointments(master_id: int,
                                    session: AsyncSession = Depends(get_db_session)):
     today = date.today()
@@ -27,7 +30,7 @@ async def get_today_appointments(master_id: int,
         "appointments": a
     }
 
-@app.get("/masters/appointments/", tags=["Master"], response_model=AppointmentListResponse)
+@router.get("/appointments/", response_model=AppointmentListResponse)
 async def get_appointments_by_date(master_id: int,
                                    date: date,
                                    session: AsyncSession = Depends(get_db_session)):
@@ -44,7 +47,7 @@ async def get_appointments_by_date(master_id: int,
         "appointments": a
     }
 
-@app.patch("/masters/profile", tags=["Master"], response_model=StatusResponse)
+@router.patch("/profile", response_model=StatusResponse)
 async def update_master_profile(update_data: MasterUpdateRequest,
                                    session: AsyncSession = Depends(get_db_session)):
     status = await db_functions.update_master(update_data=update_data, session=session)

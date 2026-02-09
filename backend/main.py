@@ -1,10 +1,15 @@
 from multiprocessing import Process
-from headband.backend import run_bot_process, run_server_process
+
+from dotenv import load_dotenv
 
 
+load_dotenv()
+from headband.backend.api import admin_endpoints, master_endpoints, user_endpoints
 
-
-
+from headband.backend import run_bot_process, run_server_process, app
+app.include_router(user_endpoints.router)
+app.include_router(master_endpoints.router)
+app.include_router(admin_endpoints.router)
 
 """@asynccontextmanager
 async def lifespan(app: FastAPI):
