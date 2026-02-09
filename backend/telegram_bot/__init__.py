@@ -1,4 +1,5 @@
 import logging
+import os
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters.state import StatesGroup, State
@@ -6,8 +7,8 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from headband.backend.database import db_functions
 
 #TODO в env конфид инфу
-BOT_TOKEN = "6676444574:AAEr9TBoYWGlAGnChuD3OP14k0_dX7qGdhs"
-BOT_URL = "http://t.me/perviyfogovskiybot?start="
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_URL = os.getenv('BOT_URL')
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)

@@ -1,5 +1,6 @@
 
 import logging
+import os
 import uuid
 from enum import Enum
 from typing import List, Optional
@@ -12,7 +13,9 @@ from datetime import time, date
 from sqlalchemy import inspect
 
 
-engine = create_async_engine('postgresql+asyncpg://postgres:1234@localhost/headband')
+
+db_address = os.getenv('DB_ADRESS')
+engine = create_async_engine(db_address)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
