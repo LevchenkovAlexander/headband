@@ -12,8 +12,8 @@ const Login = () => {
   const handleSumbit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     dispatch(setAuth(true));
-    localStorage.setItem('isAuth', 'true');
-    navigate('/profile');
+    localStorage.setItem("isAuth", "true");
+    navigate("/cabinet", { replace: true });
   };
 
   return (
@@ -58,7 +58,7 @@ const Login = () => {
           Войти
         </button>
       </form>
-      <button className="login__yandex" type="button">
+      <button className="login__yandex penis" type="button">
         Войти с Яндекс ID
       </button>
 

@@ -9,6 +9,8 @@ import telegram from "../../assets/icons/telegram.svg";
 import galka from "../../assets/icons/galka.svg";
 
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../storage/store";
 
 type textProps = {
   text: string;
@@ -25,40 +27,42 @@ type CardsWhyProps = {
   text: string;
 };
 
+const Title = ({ text, idName }: TitleProps) => {
+  return (
+    <div className="title" id={idName}>
+      <span>{text}</span>
+    </div>
+  );
+};
+
+const CardWhy = ({ icon, title, text }: CardsWhyProps) => {
+  return (
+    <div className="why-card">
+      <img className="why-card__icon" src={icon} />
+      <div className="why-card__title">{title}</div>
+      <div className="why-card__text">{text}</div>
+    </div>
+  );
+};
+
+const SpisokText = ({ text }: textProps) => {
+  return (
+    <div className="price-list__item">
+      <img src={galka} />
+      <div className="price-list__item-text">{text}</div>
+    </div>
+  );
+};
+
 const HomePage = () => {
-  const Title = ({ text, idName }: TitleProps) => {
-    return (
-      <div className="title" id={idName}>
-        <span>{text}</span>
-      </div>
-    );
-  };
-
-  const CardWhy = ({ icon, title, text }: CardsWhyProps) => {
-    return (
-      <div className="why-card">
-        <img className="why-card__icon" src={icon} />
-        <div className="why-card__title">{title}</div>
-        <div className="why-card__text">{text}</div>
-      </div>
-    );
-  };
-
-  const SpisokText = ({ text }: textProps) => {
-    return (
-      <div className="price-list__item">
-        <img src={galka} />
-        <div className="price-list__item-text">{text}</div>
-      </div>
-    );
-  };
+  const isAuth = useSelector((state: RootState) => state.auth.isAuth);
 
   return (
     <div className="main">
       <div className="header">
         <div className="header__title">headband</div>
-        <Link type="button" className="header__support" to="/profile">
-          Войти в аккаунт
+        <Link type="button" className="header__support penis" to="/cabinet">
+          {isAuth ? 'Профиль' : 'Войти в аккаунт'}
         </Link>
       </div>
 
@@ -78,11 +82,16 @@ const HomePage = () => {
               <a
                 type="button"
                 href="#price"
-                className="promo__btn promo__btn--subscribe"
+                className="promo__btn promo__btn--subscribe penis"
               >
                 Перейти к подписке
               </a>
-              <a type="button" href='#' className="promo__btn promo__btn--example">
+              <a
+                type="button"
+                href="https://w.porno365.gold"
+                target="_blank"
+                className="promo__btn promo__btn--example penis"
+              >
                 Пример сайта
               </a>
             </div>
@@ -153,7 +162,11 @@ const HomePage = () => {
               <SpisokText text="бесплатный ИИ инструмент для примерки прически" />
               <SpisokText text="возможность связи с 2GIS и др. для отображения отзывов" />
             </div>
-            <Link type="button" className="price__btn" to="/form-to-create-org">
+            <Link
+              type="button"
+              className="price__btn penis"
+              to="/form-to-create-org"
+            >
               Оформить
             </Link>
           </div>
