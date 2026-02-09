@@ -22,8 +22,19 @@ from datetime import timedelta
 from headband.backend.telegram_bot import BOT_URL
 
 
+async def auth_by_email(email: str, password: str, session: AsyncSession):
+    hash_pass = hashlib.sha256(password.encode()).hexdigest()
+    status, adm_id = await AdminModel.check_by_email_pass(session=session, email=email, password=hash_pass)
+    return status, adm_id
 
+#TODO сделать токен авторизацию
+#async def auth_by_token(token: str, session: AsyncSession):
+    #hash_pass = hashlib.sha256(password.encode()).hexdigest()
+    #status, adm_id = await AdminModel.check_by_email_pass(session=session, email=email, password=hash_pass)
+    #return status, adm_id
 
+async def check_admin_email(email: str, session: AsyncSession):
+    return await AdminModel.check_by_email(session=session, email=email)
 
 async def get_possible_start_time(master_id, date, price_id, session: AsyncSession):
     """Получение возможного времени для записи"""
@@ -238,13 +249,17 @@ async def delete_organization(delete_id: uuid.UUID, session: AsyncSession):
 """admin fetches"""
 async def update_admin(update_data: AdminUpdateRequest, session: AsyncSession):
     org_to_upd = update_data.model_dump(exclude_unset=True)
-    status = await AdminModel.update(session=session, update_data=org_to_upd)
+    obj_id = org_to_upd.pop("id")
+    status = await AdminModel.update(session=session, obj_id=obj_id, update_data=org_to_upd)
     return status
 
 async def create_admin(adm_request: AdminCreateRequest, session: AsyncSession):
     admin_dict = adm_request.model_dump()
-    status, adm_id = await AdminModel.create(session=session, data=admin_dict)
-    return status, adm_id
+    if adm_request.password != None:
+        hash_pass = hashlib.sha256(adm_request.password.encode()).hexdigest()
+        admin_dict["password"] = hash_pass
+    adm_id = await AdminModel.create(session=session, data=admin_dict)
+    return "success", adm_id
 
 
 """price fetches"""

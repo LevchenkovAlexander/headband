@@ -88,6 +88,11 @@ class AdminCreateRequest(BaseModel):
     subscription: int
     end_of_subscription: Optional[date] = None
 
+class AdminAuthRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    yaToken: Optional[str] = None
+
 class AdminUpdateRequest(BaseModel):
     id: uuid.UUID
     password: Optional[str] = None

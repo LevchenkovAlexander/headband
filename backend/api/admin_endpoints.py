@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from headband.backend.database import db_functions, get_db_session
 from headband.backend.database.requests import OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, \
-    AdminCreateRequest, AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest, PriceUpdateRequest
+    AdminCreateRequest, AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest, PriceUpdateRequest, AdminAuthRequest
 from headband.backend.database.responses import OrganizationResponse, StatusResponse, IDResponse, AdminResponseInfo
 from headband.backend.telegram_bot import BOT_URL
 
@@ -55,12 +55,30 @@ async def delete_price(id: uuid.UUID,
     status = await db_functions.delete_price(delete_id=id, session=session)
     return {"status": status}
 
-@router.post("/create_admin/", response_model=IDResponse)
+@router.post("/create_admin", response_model=IDResponse)
 async def create_admin(adm_request: AdminCreateRequest,
                               session: AsyncSession = Depends(get_db_session)):
+    if adm_request.email != None:
+        if await db_functions.check_admin_email(email=str(adm_request.email), session=session):
+            status, adm_id = await db_functions.create_admin(adm_request=adm_request, session=session)
+            return {"status": status,
+                    "id": adm_id}
+        return {"status": "Email repeat",
+                    "id": "00000000-0000-0000-0000-000000000000"}
     status, adm_id = await db_functions.create_admin(adm_request=adm_request, session=session)
     return {"status": status,
             "id": adm_id}
+
+@router.post("/authorize_admin", response_model=IDResponse)
+async def authorize_admin(adm_request: AdminAuthRequest,
+                              session: AsyncSession = Depends(get_db_session)):
+    if adm_request.email != None and adm_request.password != None:
+        status, adm_id = await db_functions.auth_by_email(email = str(adm_request.email), password = (adm_request.password), session=session)
+        return {"status": status,
+                "id": adm_id}
+    #TODO сделать токен авторизацию
+    return {"status": "status",
+            "id": uuid.RFC_4122}
 
 @router.patch("/update_admin", response_model=StatusResponse)
 async def update_admin(update_data: AdminUpdateRequest,
@@ -74,7 +92,7 @@ async def get_admin_info(admin_id: uuid.UUID,
     response = await db_functions.get_admin_info(id = admin_id, session=session)
     return response
 
-@router.post("/create_offer/", response_model=IDResponse)
+@router.post("/create_offer", response_model=IDResponse)
 async def create_offer(off_request: OfferCreateRequest,
                               session: AsyncSession = Depends(get_db_session)):
     status, offer_id = await db_functions.create_offer(offer=off_request, session=session)

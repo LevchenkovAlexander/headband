@@ -105,6 +105,24 @@ class AdminModel(Base):
     )
 
     @classmethod
+    async def check_by_email(cls, session: AsyncSession, email: str):
+        """Отсутствие повторяющихся"""
+        query = select(cls).where(cls.email.__eq__(email))
+        result = await session.execute(query)
+        if result.scalar_one_or_none() == None:
+            return True
+        return False
+
+    @classmethod
+    async def check_by_email_pass(cls, session: AsyncSession, email: str, password: str):
+        query = select(cls).where(cls.email.__eq__(email) and cls.password.__eq__(password))
+        result = await session.execute(query)
+        adm = result.scalar_one_or_none()
+        if adm == None:
+            return "wrong data", uuid.RFC_4122
+        return "success", adm.id
+
+    @classmethod
     async def get_by_id(cls, session: AsyncSession, id: uuid.UUID):
         query = select(cls).where(cls.id == id)
         result = await session.execute(query)
@@ -125,6 +143,7 @@ class AdminModel(Base):
             .values(**update_data)
         )
         await session.execute(query)
+        return "success"
 
     @classmethod
     async def delete(cls, session: AsyncSession, id: uuid.UUID):
