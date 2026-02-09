@@ -4,8 +4,8 @@ from datetime import date
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from headband.backend import get_db_session
-from headband.backend.database import db_functions
+
+from headband.backend.database import db_functions, get_db_session
 from headband.backend.database.requests import AppointmentCreateRequest, PriceUpdateRequest
 from headband.backend.database.responses import StatusResponse, PossibleTimesResponse, WeekTimetableResponse
 
@@ -48,19 +48,7 @@ async def cancel_appointment(id: uuid.UUID,
     status = await db_functions.cancel_appointment(appointment_id=id, session=session)
     return {"status": status}
 
-@router.get("/masters/appointments/week/", tags=["Master"], response_model=WeekTimetableResponse)
-async def get_week_timetable(master_id: int,
-                            start_date: date,
-                            session: AsyncSession = Depends(get_db_session)):
-    week_appointments, status = await db_functions.get_week_timetable(master_id=master_id, date=start_date, session=session)
-    return {
-        "status": status,
-        "week_appointments": week_appointments
-    }
 
-@router.patch("/admins/update_price_position", tags=["Admin"], response_model=StatusResponse)
-async def update_price(update_data: PriceUpdateRequest,
-                              session: AsyncSession = Depends(get_db_session)):
-    status = await db_functions.update_price(update_data=update_data, session=session)
-    return {"status": status}
+
+
 

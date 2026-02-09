@@ -3,10 +3,9 @@ import uuid
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from headband.backend import get_db_session
-from headband.backend.database import db_functions
+from headband.backend.database import db_functions, get_db_session
 from headband.backend.database.requests import OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, \
-    AdminCreateRequest, AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest
+    AdminCreateRequest, AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest, PriceUpdateRequest
 from headband.backend.database.responses import OrganizationResponse, StatusResponse, IDResponse, AdminResponseInfo
 from headband.backend.telegram_bot import BOT_URL
 
@@ -15,6 +14,11 @@ router = APIRouter(
     tags=["Admin"]
 )
 
+@router.patch("/admins/update_price_position", response_model=StatusResponse)
+async def update_price(update_data: PriceUpdateRequest,
+                              session: AsyncSession = Depends(get_db_session)):
+    status = await db_functions.update_price(update_data=update_data, session=session)
+    return {"status": status}
 @router.post("/create_organization", response_model=OrganizationResponse)
 async def create_organization(org_info: OrganizationCreateRequest,
                                    session: AsyncSession = Depends(get_db_session)):

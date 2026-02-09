@@ -3,15 +3,25 @@ from datetime import date
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from headband.backend import get_db_session
-from headband.backend.database import db_functions
+from headband.backend.database import db_functions, get_db_session
 from headband.backend.database.requests import MasterUpdateRequest
-from headband.backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse
+from headband.backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
+    WeekTimetableResponse
 
 router = APIRouter(
     prefix="/masters",
     tags=["Master"]
 )
+
+@router.get("/appointments/week/", response_model=WeekTimetableResponse)
+async def get_week_timetable(master_id: int,
+                            start_date: date,
+                            session: AsyncSession = Depends(get_db_session)):
+    week_appointments, status = await db_functions.get_week_timetable(master_id=master_id, date=start_date, session=session)
+    return {
+        "status": status,
+        "week_appointments": week_appointments
+    }
 
 @router.get("/appointments/today/", response_model=AppointmentListResponse)
 async def get_today_appointments(master_id: int,

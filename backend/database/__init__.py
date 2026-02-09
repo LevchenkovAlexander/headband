@@ -2,8 +2,9 @@
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey, select, update, delete, text, func
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, date
 from sqlalchemy import inspect
-
+logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 
 db_address = os.getenv('DB_ADDRESS')
@@ -55,6 +56,23 @@ async def setup_database():
 async def close_connection():
     if engine:
         await engine.dispose()
+
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    print("get_db called")  # ← Отладка
+    async with AsyncSessionLocal() as session:
+        print(f"Session created: {session}")  # ← Отладка
+        try:
+            print("Yielding session")  # ← Отладка
+            yield session
+            await session.commit()
+            print("Session committed")  # ← Отладка
+        except Exception as e:
+            print(f"Session error: {e}")  # ← Отладка
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+            print("Session closed")  # ← Отладка
 
 class Base(DeclarativeBase):
     pass

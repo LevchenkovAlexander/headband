@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -34,17 +33,7 @@ app = FastAPI(
 
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
-@asynccontextmanager
-async def get_db_session():
-    session = AsyncSessionLocal()
-    try:
-        yield session
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    finally:
-        await session.close()
+
 
 async def start_db():
     if await db.setup_database():
