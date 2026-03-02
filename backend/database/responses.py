@@ -68,6 +68,26 @@ class AdminResponseInfo(IDResponse):
     masters: List[Dict]
     offers: List[Dict]
 
+class OrgnaizationBaseResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+
+class OrganizationFilterResponse(StatusResponse):
+    organizations: List[OrgnaizationBaseResponse] | []
+
+class GuideResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    category: str
+
+class GuidePageResponse(StatusResponse):
+    guides_fit: List[GuideResponse] | []
+    guides_all: List[GuideResponse] | []
+
+class StepResponse(StatusResponse):
+    steps: Text
+
+
 
 
 

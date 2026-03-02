@@ -7,19 +7,19 @@ import uuid
 from aiogram.types import User, Chat
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from headband.backend.database import AppointmentModel, MasterModel, Week, UserModel, \
-    OrganizationModel, PriceModel, AdminModel, SpecialOffersModel
+from backend.database import AppointmentModel, MasterModel, Week, UserModel, \
+    OrganizationModel, PriceModel, AdminModel, SpecialOffersModel, GuidesModel
 
-from headband.backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
+from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
     AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest
-from headband.backend.database.responses import AppointmentResponse, AdminResponseOrganizations, AdminResponseMasters, \
+from backend.database.responses import AppointmentResponse, AdminResponseOrganizations, AdminResponseMasters, \
     AdminResponseSpecialOffers, AdminResponseInfo
-from headband.backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
+from backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
     _get_week_dates, _timedelta_to_time
 from datetime import timedelta
 
-from headband.backend.telegram_bot import BOT_URL
+from backend.telegram_bot import BOT_URL
 
 
 async def auth_by_email(email: str, password: str, session: AsyncSession):
@@ -32,6 +32,53 @@ async def auth_by_email(email: str, password: str, session: AsyncSession):
     #hash_pass = hashlib.sha256(password.encode()).hexdigest()
     #status, adm_id = await AdminModel.check_by_email_pass(session=session, email=email, password=hash_pass)
     #return status, adm_id
+
+async def get_organization_filter(user_id: int, session: AsyncSession):
+    #TODO получаем все организации из database/init.py
+    #organizations = get_func(user_id)
+    response_list = []
+    for organization in organizations:
+        resp = {}
+        resp["id"] = organization.id
+        resp["name"] = organization.name
+        response_list.append(resp)
+    if len(response_list) == 0:
+        resp = {}
+        resp["id"] = uuid.RFC_4122
+        resp["name"] = "null_name"
+        response_list.append(resp)
+        status = "no organizations"
+        return status, response_list
+    status = "success"
+    return status, response_list
+
+async def get_guides(id: int, session: AsyncSession):
+    cats = MasterModel.get_cats_by_chat_id(id=id, session=session)
+    categories_final = set()
+    for cat in cats:
+        c = cat.split(" ")
+        for t in c:
+            categories_final.add(t[0])
+    g_fitable = GuidesModel.get_guides(list(categories_final), session=session)
+    g_all = GuidesModel.get_guides_all(session=session)
+    g_fit_resp = []
+    g_all_resp = []
+    for g in g_fitable:
+        resp = {}
+        resp["id"] = g.id
+        resp["name"] = g.name
+        resp["category"] = g.category
+        g_fit_resp.append(resp)
+    for g in g_all:
+        resp = {}
+        resp["id"] = g.id
+        resp["name"] = g.name
+        resp["category"] = g.category
+        g_all_resp.append(resp)
+    return "success", g_fit_resp, g_all_resp
+
+async def get_steps(guide_id: uuid.UUID, session: AsyncSession):
+    return await GuidesModel.get_by_id(id=guide_id, session=session)
 
 async def check_admin_email(email: str, session: AsyncSession):
     return await AdminModel.check_by_email(session=session, email=email)

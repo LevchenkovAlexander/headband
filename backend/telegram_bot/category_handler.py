@@ -8,7 +8,7 @@ class ServiceCategoryToNum(Enum):
     BROWS_LASHES = "4"
     DEPILATION_EPILATION = "5"
     MAKEUP = "6"
-    FULLMAKEUP_CONSULTATIONS = "7"
+    CONSULTATIONS = "7"
     TANNING = "8"
     OTHER = "9"
 
@@ -20,7 +20,7 @@ class ServiceCategoryToRus(Enum):
     DEPILATION_EPILATION = "Депиляция и эпиляция"
     MAKEUP = "Макияж"
     TANNING = "Солярий"
-    FULLMAKEUP_CONSULTATIONS = "Визаж и консультации"
+    FULLMAKEUP_CONSULTATIONS = "Консультации"
     OTHER = "Другое"
 
 """Service enums"""

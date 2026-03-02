@@ -1,4 +1,8 @@
-fastapi[standart]
-aiogram
+fastapi[standart]~=0.128.8
+aiogram~=3.22.0
 aiosqlite
 sqlalchemy
+
+pydantic~=2.11.10
+dotenv~=0.9.9
+python-dotenv~=1.2.1

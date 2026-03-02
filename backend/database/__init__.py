@@ -342,6 +342,14 @@ class MasterModel(Base):
         ids = result.scalars().all()
         return list(ids)
 
+    @classmethod
+    async def get_cats_by_chat_id(cls, session: AsyncSession, chat_id: int):
+        query = select(cls.categories).where(
+            cls.chat_id == chat_id)
+        result = await session.execute(query)
+        cats = result.scalars().all()
+        return list(cats)
+
 class SpecialOffersModel(Base):
     __tablename__ = "specials"
 
@@ -596,3 +604,33 @@ class IndividualPricesModel(Base):
         query = delete(cls).where(cls.master_id == master_id)
         await session.execute(query)
         return "success"
+
+class GuidesModel(Base):
+    __tablename__ = "guides"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str]
+    category: Mapped[str]
+    steps: Mapped[Text]
+
+    @classmethod
+    async def get_guides(cls, categories: List, session: AsyncSession):
+        query = select(cls).where(cls.category in categories).order_by(cls.category)
+        g_fit = session.execute(query).scalars().all()
+        if g_fit != None:
+            return g_fit
+        return []
+
+    @classmethod
+    async def get_guides_all(cls, session: AsyncSession):
+        query = select(cls).order_by(cls.category)
+        g_all = session.execute(query).scalars().all()
+        if g_all != None:
+            return g_all
+        return []
+
+    @classmethod
+    async def get_by_id(cls, id: uuid.UUID, session: AsyncSession):
+        query = select(cls.steps).where(id == cls.id)
+        step = session.execute(query).scalar_one_or_none()
+        return "success", step

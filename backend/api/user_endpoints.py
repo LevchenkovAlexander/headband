@@ -5,9 +5,10 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from headband.backend.database import db_functions, get_db_session
-from headband.backend.database.requests import AppointmentCreateRequest, PriceUpdateRequest
-from headband.backend.database.responses import StatusResponse, PossibleTimesResponse, WeekTimetableResponse
+from backend.database import db_functions, get_db_session
+from backend.database.requests import AppointmentCreateRequest, PriceUpdateRequest
+from backend.database.responses import StatusResponse, PossibleTimesResponse, WeekTimetableResponse, \
+    OrganizationFilterResponse
 
 router = APIRouter(
     prefix="/users",
@@ -48,6 +49,12 @@ async def cancel_appointment(id: uuid.UUID,
     status = await db_functions.cancel_appointment(appointment_id=id, session=session)
     return {"status": status}
 
+@router.get("/filter/organizations", response_model=OrganizationFilterResponse)
+async def get_organizatons(user_id: int,
+                           session: AsyncSession = Depends(get_db_session())):
+    status, organizations = await db_functions.get_organization_filter(user_id=user_id, session=session)
+    return {"status": status,
+            "organizations": organizations}
 
 
 

@@ -1,12 +1,13 @@
+import uuid
 from datetime import date
 
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from headband.backend.database import db_functions, get_db_session
-from headband.backend.database.requests import MasterUpdateRequest
-from headband.backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
-    WeekTimetableResponse
+from backend.database import db_functions, get_db_session
+from backend.database.requests import MasterUpdateRequest
+from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
+    WeekTimetableResponse, GuidePageResponse
 
 router = APIRouter(
     prefix="/masters",
@@ -64,3 +65,19 @@ async def update_master_profile(update_data: MasterUpdateRequest,
     return {
         "status": status
     }
+
+@router.get("/guides", response_model=GuidePageResponse)
+async def get_guides(master_chat: int,
+                     session: AsyncSession = Depends(get_db_session)):
+    status, g_fitable, g_all = await db_functions.get_guides(id=master_chat, session=session)
+    return {"status": status,
+            "guides_fit": g_fitable,
+            "guides_all": g_all}
+
+@router.get("/guides", response_model=StepResponse)
+async def get_steps(guide_id: uuid.UUID,
+                    session: AsyncSession = Depends(get_db_session)):
+    status, steps = await db_functions.get_steps(guide_id=guide_id, session=session)
+    return {"status": status,
+            "steps": steps}
+

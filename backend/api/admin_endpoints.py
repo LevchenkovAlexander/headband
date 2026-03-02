@@ -3,11 +3,11 @@ import uuid
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from headband.backend.database import db_functions, get_db_session
-from headband.backend.database.requests import OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, \
+from backend.database import db_functions, get_db_session
+from backend.database.requests import OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, \
     AdminCreateRequest, AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest, PriceUpdateRequest, AdminAuthRequest
-from headband.backend.database.responses import OrganizationResponse, StatusResponse, IDResponse, AdminResponseInfo
-from headband.backend.telegram_bot import BOT_URL
+from backend.database.responses import OrganizationResponse, StatusResponse, IDResponse, AdminResponseInfo
+from backend.telegram_bot import BOT_URL
 
 router = APIRouter(
     prefix="/admins",
