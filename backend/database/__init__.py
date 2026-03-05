@@ -149,7 +149,7 @@ class AdminModel(Base):
     async def delete(cls, session: AsyncSession, id: uuid.UUID):
         query = delete(cls).where(cls.id == id)
         await session.execute(query)
-
+        return "success"
 class OrganizationModel(Base):
     __tablename__ = "organizations"
 
@@ -192,6 +192,12 @@ class OrganizationModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+
+    @classmethod
+    async def get_categories_by_org_ids(cls, session: AsyncSession, ids: List[uuid.UUID]):
+        query = select(cls.categories).where(cls.id.in_(ids))
+        result = await session.execute(query)
+        return result.scalars().all()
 
     @classmethod
     async def get_org_by_id(cls, session: AsyncSession, id: uuid.UUID):
@@ -439,7 +445,17 @@ class UserModel(Base):
         users_count_result = await session.execute(users_count_query)
         return users_count_result.scalar() or 0
 
+    @classmethod
+    async def get_users_by_chat_id(cls, session: AsyncSession, chat_id = int):
+        query = select(cls.id).where(cls.chat_id==chat_id)
+        result = await session.execute(query)
+        return result.scalars().all()
 
+    @classmethod
+    async def get_organizations_by_chat_id(cls, session: AsyncSession, chat_id: int):
+        query = select(cls.organization_id).where(cls.chat_id==chat_id)
+        result = await session.execute(query)
+        return result.scalars().all()
 
 class AppointmentModel(Base):
     __tablename__ = "appointments"
@@ -475,6 +491,17 @@ class AppointmentModel(Base):
         result = await session.execute(query)
         appointments = result.scalars().all()
         if len(appointments)!=0:
+            return appointments, True
+        return [], False
+
+    @classmethod
+    async def get_by_user(cls, session: AsyncSession, user_ids: List[uuid.UUID]):
+        query = select(cls).where(
+            cls.user_id.in_(user_ids)
+        ).order_by(cls.date)
+        result = await session.execute(query)
+        appointments = result.scalars().all()
+        if len(appointments) != 0:
             return appointments, True
         return [], False
 

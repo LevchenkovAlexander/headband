@@ -1,6 +1,6 @@
 import uuid
 from datetime import time, date
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, field_validator, EmailStr
 
 
@@ -27,6 +27,7 @@ class MasterUpdateRequest(BaseModel):
     working_day_start: Optional[time] = None
     working_day_end: Optional[time] = None
     day_off: Optional[str] = None
+    categories: Optional[str] = None
 
 class MasterCreateRequest(BaseModel):
     chat_id: int
@@ -113,3 +114,8 @@ class OfferUpdateRequest(BaseModel):
     description: Optional[str] = None
     deadline_start: Optional[date] = None
     deadline_end: Optional[date] = None
+
+class MastersPageRequest(BaseModel):
+    chat_id: int
+    category: int
+    filter: Optional[List[uuid.UUID]] = None

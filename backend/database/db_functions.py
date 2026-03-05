@@ -221,6 +221,67 @@ async def get_admin_info(id, session: AsyncSession):
     )
     return response
 
+async def get_appointments_by_user(chat_id, session: AsyncSession):
+    user_ids = await UserModel.get_users_by_chat_id(session=session, chat_id=chat_id)
+    appointments, flag = await AppointmentModel.get_by_user(session=session, user_ids=user_ids)
+    response_list = []
+    for a in appointments:
+        aresponse = AppointmentResponse.model_validate(a).model_dump()
+        price_id = a.price_id
+        name = await PriceModel.get_name_by_id(session=session, id=price_id)
+        org_id = await PriceModel.get_org_id_by_id(session=session, id=price_id)
+        address = await OrganizationModel.get_address_by_id(session=session, id=org_id)
+        aresponse["address"] = address
+        aresponse["service_name"] = name
+        response_list.append(aresponse)
+    return response_list
+
+async def get_masters_by_category_and_user(chat_id, category, session, filter = None):
+    if filter == None:
+        org_ids = await UserModel.get_organizations_by_chat_id(chat_id=chat_id, session=session)
+        masters = await MasterModel.get_masters_by_org_ids_full(org_ids=org_ids, session=session)
+        response = []
+        for master in masters:
+            mresponse = {}
+            master_category = (master.categories).split(" ")
+            for c in master_category:
+                if int(c[0])==int(category):
+                    subcategories = c[1:]
+                    mresponse["subcategories"] = subcategories
+                    mresponse["name"] = master.full_name
+                    address = await OrganizationModel.get_address_by_id(id=master.organization_id, session=session)
+                    mresponse["address"] = address
+                    mresponse["id"] = master.id
+                    response.append(mresponse)
+        return response, 'success'
+    else:
+        masters = await MasterModel.get_masters_by_org_ids_full(org_ids=filter, session=session)
+        response = []
+        for master in masters:
+            mresponse = {}
+            master_category = (master.categories).split(" ")
+            for c in master_category:
+                if c[0] == category:
+                    subcategories = c[1:]
+                    mresponse["subcategories"] = subcategories
+                    mresponse["name"] = master.full_name
+                    address = OrganizationModel.get_address_by_id(id=master.organization_id, session=session)
+                    mresponse["address"] = address
+                    mresponse["id"] = master.id
+                    response.append(mresponse)
+        return response, 'success'
+
+
+async def get_categories_by_user(chat_id, session: AsyncSession):
+    org_ids = await UserModel.get_organizations_by_chat_id(session=session, chat_id=chat_id)
+    categories = await OrganizationModel.get_categories_by_org_ids(session=session, ids = org_ids)
+    response = []
+    for category in categories:
+        cat_arr = category.split(" ")
+        for c in cat_arr:
+            response.append(c[0])
+    response = sorted(list(set(response)))
+    return "".join(response)
 async def get_week_timetable(master_id, date, session: AsyncSession):
     week_list = _get_week_dates(date)
     week_appointments = []

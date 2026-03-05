@@ -87,6 +87,20 @@ class GuidePageResponse(StatusResponse):
 class StepResponse(StatusResponse):
     steps: Text
 
+class UserResponseMainPage(StatusResponse):
+    appointments: Optional[List[Dict]] = None
+    categories: str
+
+class UserResponseMastersOnMastersPage(BaseModel):
+    id: uuid.UUID
+    name: str
+    address: str
+    subcategories: str
+
+class UserResponseMastersPage(StatusResponse):
+    masters: Optional[List[UserResponseMastersOnMastersPage]] = None
+
+
 
 
 

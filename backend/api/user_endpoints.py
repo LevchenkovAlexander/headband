@@ -5,10 +5,10 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from backend.database import db_functions, get_db_session
-from backend.database.requests import AppointmentCreateRequest, PriceUpdateRequest
-from backend.database.responses import StatusResponse, PossibleTimesResponse, WeekTimetableResponse, \
-    OrganizationFilterResponse
+from headband.backend.database import db_functions, get_db_session
+from headband.backend.database.requests import AppointmentCreateRequest, MastersPageRequest
+from headband.backend.database.responses import StatusResponse, PossibleTimesResponse, \
+    UserResponseMainPage, UserResponseMastersPage
 
 router = APIRouter(
     prefix="/users",
@@ -49,6 +49,14 @@ async def cancel_appointment(id: uuid.UUID,
     status = await db_functions.cancel_appointment(appointment_id=id, session=session)
     return {"status": status}
 
+@router.get("/main_page", response_model=UserResponseMainPage)
+async def get_main_page(chat_id: int,
+                   session: AsyncSession = Depends(get_db_session)):
+    appointments = await db_functions.get_appointments_by_user(chat_id=chat_id, session=session)
+    categories = await db_functions.get_categories_by_user(chat_id=chat_id, session=session)
+    return {"status": "success",
+            "appointments": appointments,
+            "categories": categories}
 @router.get("/filter/organizations", response_model=OrganizationFilterResponse)
 async def get_organizatons(user_id: int,
                            session: AsyncSession = Depends(get_db_session())):
@@ -58,4 +66,9 @@ async def get_organizatons(user_id: int,
 
 
 
-
+@router.post("/masters_page", response_model=UserResponseMastersPage)
+async def get_masters_page(request: MastersPageRequest,
+                           session: AsyncSession = Depends(get_db_session)):
+    response, success = await db_functions.get_masters_by_category_and_user(chat_id=request.chat_id, category=request.category, session=session, filter=request.filter)
+    return {"status": success,
+            "masters": response}
