@@ -35,12 +35,6 @@ app = FastAPI(
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
 
 
-async def start_db():
-    if await db.setup_database():
-        logging.info("БД запущена")
-        return True
-    return False
-
 def run_bot_process():
     """Запуск бота в отдельном процессе"""
     asyncio.run(bot_main.start_bot())

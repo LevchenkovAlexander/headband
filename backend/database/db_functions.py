@@ -8,11 +8,10 @@ from aiogram.types import User, Chat
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import AppointmentModel, MasterModel, Week, UserModel, \
-    OrganizationModel, PriceModel, AdminModel, SpecialOffersModel, GuidesModel
+     PriceModel, AdminModel, GuidesModel
 
 from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
-    OrganizationCreateRequest, AdminCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
-    AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest
+    OrganizationCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
 from backend.database.responses import AppointmentResponse, AdminResponseOrganizations, AdminResponseMasters, \
     AdminResponseSpecialOffers, AdminResponseInfo
 from backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
@@ -22,35 +21,6 @@ from datetime import timedelta
 from backend.telegram_bot import BOT_URL
 
 
-async def auth_by_email(email: str, password: str, session: AsyncSession):
-    hash_pass = hashlib.sha256(password.encode()).hexdigest()
-    status, adm_id = await AdminModel.check_by_email_pass(session=session, email=email, password=hash_pass)
-    return status, adm_id
-
-#TODO сделать токен авторизацию
-#async def auth_by_token(token: str, session: AsyncSession):
-    #hash_pass = hashlib.sha256(password.encode()).hexdigest()
-    #status, adm_id = await AdminModel.check_by_email_pass(session=session, email=email, password=hash_pass)
-    #return status, adm_id
-
-async def get_organization_filter(user_id: int, session: AsyncSession):
-    #TODO получаем все организации из database/init.py
-    #organizations = get_func(user_id)
-    response_list = []
-    for organization in organizations:
-        resp = {}
-        resp["id"] = organization.id
-        resp["name"] = organization.name
-        response_list.append(resp)
-    if len(response_list) == 0:
-        resp = {}
-        resp["id"] = uuid.RFC_4122
-        resp["name"] = "null_name"
-        response_list.append(resp)
-        status = "no organizations"
-        return status, response_list
-    status = "success"
-    return status, response_list
 
 async def get_guides(id: int, session: AsyncSession):
     cats = MasterModel.get_cats_by_chat_id(id=id, session=session)
@@ -80,8 +50,6 @@ async def get_guides(id: int, session: AsyncSession):
 async def get_steps(guide_id: uuid.UUID, session: AsyncSession):
     return await GuidesModel.get_by_id(id=guide_id, session=session)
 
-async def check_admin_email(email: str, session: AsyncSession):
-    return await AdminModel.check_by_email(session=session, email=email)
 
 async def get_possible_start_time(master_id, date, price_id, session: AsyncSession):
     """Получение возможного времени для записи"""
@@ -354,21 +322,6 @@ async def delete_organization(delete_id: uuid.UUID, session: AsyncSession):
     await session.commit()
     return "success"
 
-"""admin fetches"""
-async def update_admin(update_data: AdminUpdateRequest, session: AsyncSession):
-    org_to_upd = update_data.model_dump(exclude_unset=True)
-    obj_id = org_to_upd.pop("id")
-    status = await AdminModel.update(session=session, obj_id=obj_id, update_data=org_to_upd)
-    return status
-
-async def create_admin(adm_request: AdminCreateRequest, session: AsyncSession):
-    admin_dict = adm_request.model_dump()
-    if adm_request.password != None:
-        hash_pass = hashlib.sha256(adm_request.password.encode()).hexdigest()
-        admin_dict["password"] = hash_pass
-    adm_id = await AdminModel.create(session=session, data=admin_dict)
-    return "success", adm_id
-
 
 """price fetches"""
 async def create_price_position(price_position: PriceCreateRequest, session: AsyncSession):
@@ -392,20 +345,6 @@ async def delete_price(delete_id: uuid.UUID, session: AsyncSession):
     await session.commit()
     return "success"
 
-async def create_offer(offer: OfferCreateRequest, session: AsyncSession):
-    price_dict = offer.model_dump()
-    status, id = await SpecialOffersModel.create(session=session, data=price_dict)
-    return status, id
-
-
-
-async def update_offer(update_data: OfferUpdateRequest, session: AsyncSession):
-    off_to_upd = update_data.model_dump(exclude_unset=True)
-    status = await SpecialOffersModel.update(session=session, update_data=off_to_upd)
-    return status
-async def delete_offer(delete_id: uuid.UUID, session: AsyncSession):
-    status = await SpecialOffersModel.delete(session=session, id=delete_id)
-    return status
 
 
 async def user_master_deeplink(args: str, session: AsyncSession):
