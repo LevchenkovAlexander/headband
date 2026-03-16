@@ -1,363 +1,542 @@
-import logging
-import hashlib
+
 import uuid
-
-
+from typing import Tuple, Optional, List
 
 from aiogram.types import User, Chat
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import AppointmentModel, MasterModel, Week, UserModel, \
-     PriceModel, AdminModel, GuidesModel
+from backend.database import AppointmentModel, MasterModel, UserModel, \
+    PriceModel, GuidesModel, CategoryModel, MasterCategoryModel, MasterAbsenceModel, WeekTemplateModel, \
+    WorkingDayModel
 
-from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
-    OrganizationCreateRequest, PriceCreateRequest, OrganizationUpdateRequest, PriceUpdateRequest, \
-from backend.database.responses import AppointmentResponse, AdminResponseOrganizations, AdminResponseMasters, \
-    AdminResponseSpecialOffers, AdminResponseInfo
+from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, PriceCreateRequest, PriceUpdateRequest
+from backend.database.responses import AppointmentResponse
+
 from backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
     _get_week_dates, _timedelta_to_time
-from datetime import timedelta
+from datetime import timedelta, date, time, datetime
 
 from backend.telegram_bot import BOT_URL
 
 
+# ==================== GUIDES ====================
+async def get_guides(master_id: uuid.UUID, session: AsyncSession) -> Tuple[str, List[dict], List[dict]]:
+    """Получение гайдов по категориям мастера"""
+    # Получаем категории мастера через junction table
+    category_ids = await MasterCategoryModel.get_categories_by_master(id = master_id, session = session)
 
-async def get_guides(id: int, session: AsyncSession):
-    cats = MasterModel.get_cats_by_chat_id(id=id, session=session)
-    categories_final = set()
-    for cat in cats:
-        c = cat.split(" ")
-        for t in c:
-            categories_final.add(t[0])
-    g_fitable = GuidesModel.get_guides(list(categories_final), session=session)
-    g_all = GuidesModel.get_guides_all(session=session)
+    g_fitable = await GuidesModel.get_by_categories(categories=category_ids, session=session)
+    g_all = await GuidesModel.get_all(session=session)
+
     g_fit_resp = []
     g_all_resp = []
+
     for g in g_fitable:
-        resp = {}
-        resp["id"] = g.id
-        resp["name"] = g.name
-        resp["category"] = g.category
-        g_fit_resp.append(resp)
+        g_fit_resp.append({
+            "id": str(g.id),
+            "steps": g.steps,
+            "author": str(g.author)
+        })
+
     for g in g_all:
-        resp = {}
-        resp["id"] = g.id
-        resp["name"] = g.name
-        resp["category"] = g.category
-        g_all_resp.append(resp)
+        g_all_resp.append({
+            "id": str(g.id),
+            "steps": g.steps,
+            "author": str(g.author)
+        })
+
     return "success", g_fit_resp, g_all_resp
 
-async def get_steps(guide_id: uuid.UUID, session: AsyncSession):
-    return await GuidesModel.get_by_id(id=guide_id, session=session)
+async def get_steps(guide_id: uuid.UUID, session: AsyncSession) -> Tuple[str, Optional[str]]:
+    """Получение шагов гайда по ID"""
+    return await GuidesModel.get_by_id(guide_id=guide_id, session=session)
 
-
-async def get_possible_start_time(master_id, date, price_id, session: AsyncSession):
+# ==================== APPOINTMENTS ====================
+async def get_possible_start_time(
+        master_id: uuid.UUID,
+        app_date: date,
+        price_id: uuid.UUID,
+        session: AsyncSession
+) -> Tuple[Optional[List[time]], str]:
     """Получение возможного времени для записи"""
-    master = await MasterModel.get_master_by_id(session = session, id=master_id)
-    days_off = master.day_off
-    weekday_name = _get_weekday_caps(date)
-    weekday = Week[weekday_name].value
 
-    if weekday in days_off:
+    master = await MasterModel.get_by_id(session=session, master_id=master_id)
+    if not master:
+        return None, "master not found"
+
+    is_absent = await MasterAbsenceModel.is_absent(
+        session=session,
+        master_id=master_id,
+        check_date=app_date
+    )
+    if is_absent:
+        return None, "master is absent"
+
+    # Проверяем день недели через week_template
+    weekday = _get_weekday_caps(app_date).value  # 1-7
+
+    week_template = await WeekTemplateModel.get_by_master_and_weekday(
+        session=session,
+        master_id=master_id,
+        weekday=weekday
+    )
+
+    if not week_template:
         return None, "day off"
 
-    else:
-        id = []
-        id.append(master_id)
-        #так как здесь мы работаем в рамках одной организации,
-        #нам не за чем знать его записей в других
-        appointments, status = await AppointmentModel.get_by_master_and_date(session = session, master_ids=id, date=date)
-        day_start = master.working_day_start
-        day_end = master.working_day_end
-        start_time = []
-        end_time = []
+    # Получаем working_day для этой даты
+    working_day = await WorkingDayModel.get_by_master_and_date(
+        session=session,
+        master_id=master_id,
+        day_date=app_date
+    )
 
-        end_time.append(_time_to_timedelta(day_start))
-        for appointment in appointments:
-            start_time.append(_time_to_timedelta(appointment.start_time))
-            end_time.append(_time_to_timedelta(appointment.end_time))
-        start_time.append(_time_to_timedelta(day_end))
+    if not working_day:
+        # Создаём working_day из template если нет
+        working_day_data = {
+            "master_id": master_id,
+            "day_date": app_date,
+            "start_time": week_template.start_time,
+            "end_time": week_template.end_time,
+            "address": week_template.address
+        }
+        working_day_id = await WorkingDayModel.create(session=session, data=working_day_data)
+        working_day = await WorkingDayModel.get_by_id(session=session, id=working_day_id)
 
-        price = await PriceModel.get_price_by_id(session = session, id=price_id)
-        appointment_approx_time = price.approximate_time
-        possible_time_for_start = 0
-        possible_starts = []
-        ten_minutes_gap = timedelta(minutes=10)
-        for i in range(len(start_time)):
-            gap = start_time[i]-end_time[i]
-            if gap>=_time_to_timedelta(appointment_approx_time):
-                free_minutes = gap-_time_to_timedelta(appointment_approx_time)
-                k = _timedelta_to_int_minutes(free_minutes)//10
-                possible_time_for_start+=(k+1)
-                for j in range(k+1):
-                    possible_starts.append(_timedelta_to_time(end_time[i]+ten_minutes_gap*j))
-        if possible_time_for_start == 0:
-            return None, "no time for app"
-        else:
-            return possible_starts, "success"
+    # Получаем записи мастера на эту дату
+    appointments = await AppointmentModel.get_by_master_and_date(
+        session=session,
+        master_id=master_id,
+        app_date=app_date
+    )
 
-async def get_appointments_by_date(master_chat_id, date, session: AsyncSession):
-    ids = await MasterModel.get_ids_by_chat_id(session=session, chat_id=master_chat_id)
-    appointments, flag = await AppointmentModel.get_by_master_and_date(session = session, master_ids=ids, date=date)
-    adresses = []
+    day_start = working_day.start_time  # в минутах
+    day_end = working_day.end_time  # в минутах
+
+    # Получаем длительность услуги
+    price = await PriceModel.get_by_id(session=session, price_id=price_id)
+    if not price:
+        return None, "price not found"
+
+    appointment_duration = price.approximate_time  # в минутах
+
+    # Собираем занятые интервалы
+    end_times = [day_start]
+    start_times = []
+
+    for appointment in appointments:
+        app_time = _time_to_timedelta(appointment.time)
+        app_minutes = _timedelta_to_int_minutes(app_time)
+        start_times.append(app_minutes)
+        end_times.append(app_minutes + appointment_duration)
+
+    start_times.append(day_end)
+
+    # Находим свободные слоты
+    possible_starts = []
+    ten_minutes = 10  # минут
+
+    for i in range(len(start_times)):
+        gap = start_times[i] - end_times[i]
+        if gap >= appointment_duration:
+            free_minutes = gap - appointment_duration
+            k = free_minutes // ten_minutes
+            for j in range(k + 1):
+                slot_minutes = end_times[i] + ten_minutes * j
+                possible_starts.append(_timedelta_to_time(timedelta(minutes=slot_minutes)))
+
+    if not possible_starts:
+        return None, "no time for app"
+
+    return possible_starts, "success"
+
+async def get_appointments_by_date(
+        master_id: uuid.UUID,
+        app_date: date,
+        session: AsyncSession
+) -> Tuple[List, int, str, List[Optional[str]], List[Optional[str]]]:
+    """Получение записей мастера на дату"""
+    appointments = await AppointmentModel.get_by_master_and_date(
+        session=session,
+        master_id=master_id,
+        app_date=app_date
+    )
+
+    addresses = []
     names = []
+
     for a in appointments:
-        price_id = a.price_id
-        name = await PriceModel.get_name_by_id(session=session, id=price_id)
-        org_id = await PriceModel.get_org_id_by_id(session=session, id = price_id)
-        address = await OrganizationModel.get_address_by_id(session=session, id=org_id)
-        adresses.append(address)
-        names.append(name)
-    if flag:
-        return appointments, len(appointments), "success", adresses, names
+        price = await PriceModel.get_by_id(session=session, price_id=a.price_id)
+        if price:
+            names.append(price.name)
+            # Получаем адрес из working_day
+            working_day = await WorkingDayModel.get_by_id(session=session, id=a.working_day_id)
+            addresses.append(working_day.address if working_day else None)
+        else:
+            names.append(None)
+            addresses.append(None)
+
+    if appointments:
+        return appointments, len(appointments), "success", addresses, names
+
     return [], 0, "no appointments today", [], []
 
-async def get_admin_info(id, session: AsyncSession):
-    admin = await AdminModel.get_by_id(session=session, id=id)
+async def get_appointments_by_user(
+        chat_id: int,
+        session: AsyncSession
+) -> List[dict]:
+    """Получение записей пользователя"""
+    user = await UserModel.get_by_chat_id(session=session, chat_id=chat_id)
+    if not user:
+        return []
 
-    #Получаем организации
-    organizations = await OrganizationModel.get_organizations_by_adm_id_full(session=session, adm_id=id)
-    org_ids = [org.id for org in organizations]
-    organizations_response = []
-    users_num = 0
-    masters_response = []
-    offers_response = []
-    master_chats = []
-    if len(organizations)>0:
-        for organization in organizations:
-            org_response = AdminResponseOrganizations(
-                id=organization.id,
-                status="success",
-                tg_master=BOT_URL + organization.unique_code_master,
-                tg_user=BOT_URL + organization.unique_code_user,
-                name=organization.name,
-                address=organization.address,
-                categories=organization.categories
-            )
-            organizations_response.append(org_response.model_dump())
-        masters = await MasterModel.get_masters_by_org_ids_full(session=session, org_ids=org_ids)
-        master_chats = [master.chat_id for master in masters]
-        if len(masters) > 0:
-            for master in masters:
-                master_response = AdminResponseMasters(
-                    id=master.id,
-                    status="success",
-                    username=master.username,
-                    full_name=master.full_name,
-                    working_day_start=master.working_day_start,
-                    working_day_end=master.working_day_end,
-                    day_off=master.day_off,
-                    categories=master.categories
-                )
-                masters_response.append(master_response.model_dump())
-        else:
-            masters_response.append({"status": "no elements"})
-
-        offers = await SpecialOffersModel.get_offers_by_org_ids_full(session=session, org_ids=org_ids)
-        if len(offers) > 0:
-            for offer in offers:
-                offer_response = AdminResponseSpecialOffers(
-                    id=offer.id,
-                    status="success",
-                    organization_id=offer.organization_id,
-                    name=offer.name,
-                    deadline_start=offer.deadline_start,
-                    deadline_end=offer.deadline_end
-                )
-                offers_response.append(offer_response.model_dump())
-        else:
-            offers_response.append({"status": "no elements"})
-        users_num += await UserModel.get_users_num_by_org_ids(session=session, org_ids=org_ids)
-
-    else:
-        organizations_response.append({"status": "no elements"})
-        masters_response.append({"status": "no elements"})
-        offers_response.append({"status": "no elements"})
-
-
-    response = AdminResponseInfo(
-        id=admin.id,
-        status="success",
-        email=admin.email,
-        end_of_subscription=admin.end_of_subscription,
-        num_organizations=len(organizations),
-        num_masters=len(set(master_chats)),
-        num_users=users_num,
-        organizations=organizations_response,
-        masters=masters_response,
-        offers=offers_response
+    appointments = await AppointmentModel.get_by_user_id(
+        session=session,
+        user_id=user.id
     )
-    return response
 
-async def get_appointments_by_user(chat_id, session: AsyncSession):
-    user_ids = await UserModel.get_users_by_chat_id(session=session, chat_id=chat_id)
-    appointments, flag = await AppointmentModel.get_by_user(session=session, user_ids=user_ids)
     response_list = []
     for a in appointments:
         aresponse = AppointmentResponse.model_validate(a).model_dump()
-        price_id = a.price_id
-        name = await PriceModel.get_name_by_id(session=session, id=price_id)
-        org_id = await PriceModel.get_org_id_by_id(session=session, id=price_id)
-        address = await OrganizationModel.get_address_by_id(session=session, id=org_id)
-        aresponse["address"] = address
-        aresponse["service_name"] = name
+
+        price = await PriceModel.get_by_id(session=session, price_id=a.price_id)
+        if price:
+            aresponse["service_name"] = price.name
+            aresponse["final_price"] = a.final_price
+
+        # Получаем адрес из working_day
+        working_day = await WorkingDayModel.get_by_id(session=session, id=a.working_day_id)
+        if working_day:
+            aresponse["address"] = working_day.address
+
         response_list.append(aresponse)
+
     return response_list
 
-async def get_masters_by_category_and_user(chat_id, category, session, filter = None):
-    if filter == None:
-        org_ids = await UserModel.get_organizations_by_chat_id(chat_id=chat_id, session=session)
-        masters = await MasterModel.get_masters_by_org_ids_full(org_ids=org_ids, session=session)
-        response = []
-        for master in masters:
-            mresponse = {}
-            master_category = (master.categories).split(" ")
-            for c in master_category:
-                if int(c[0])==int(category):
-                    subcategories = c[1:]
-                    mresponse["subcategories"] = subcategories
-                    mresponse["name"] = master.full_name
-                    address = await OrganizationModel.get_address_by_id(id=master.organization_id, session=session)
-                    mresponse["address"] = address
-                    mresponse["id"] = master.id
-                    response.append(mresponse)
-        return response, 'success'
-    else:
-        masters = await MasterModel.get_masters_by_org_ids_full(org_ids=filter, session=session)
-        response = []
-        for master in masters:
-            mresponse = {}
-            master_category = (master.categories).split(" ")
-            for c in master_category:
-                if c[0] == category:
-                    subcategories = c[1:]
-                    mresponse["subcategories"] = subcategories
-                    mresponse["name"] = master.full_name
-                    address = OrganizationModel.get_address_by_id(id=master.organization_id, session=session)
-                    mresponse["address"] = address
-                    mresponse["id"] = master.id
-                    response.append(mresponse)
-        return response, 'success'
-
-
-async def get_categories_by_user(chat_id, session: AsyncSession):
-    org_ids = await UserModel.get_organizations_by_chat_id(session=session, chat_id=chat_id)
-    categories = await OrganizationModel.get_categories_by_org_ids(session=session, ids = org_ids)
-    response = []
-    for category in categories:
-        cat_arr = category.split(" ")
-        for c in cat_arr:
-            response.append(c[0])
-    response = sorted(list(set(response)))
-    return "".join(response)
-async def get_week_timetable(master_id, date, session: AsyncSession):
-    week_list = _get_week_dates(date)
-    week_appointments = []
-    for day in week_list:
-        appointments, count, status, addresses, names = await get_appointments_by_date(master_id, day, session)
-        a = []
-        for i, appointment in enumerate(appointments):
-            aresponse = AppointmentResponse.model_validate(appointment).model_dump()
-            aresponse["address"] = addresses[i]
-            aresponse["service_name"] = names[i]
-            a.append(aresponse)
-        week_appointments.append(a)
-    return week_appointments, "success"
-
-async def create_appointment(appointment_request: AppointmentCreateRequest, session: AsyncSession):
-    price = await PriceModel.get_price_by_id(session = session, id=appointment_request.price_id)
-    appointment_dict = appointment_request.model_dump()
-    appointment_dict["end_time"] = _timedelta_to_time(_time_to_timedelta(appointment_dict["start_time"])+_time_to_timedelta(price.approximate_time))
-    status = await AppointmentModel.create(session = session, data=appointment_dict)
-    return status
-
-async def update_master(update_data, session: AsyncSession):
-    master_to_upd = update_data.model_dump(exclude_unset=True)
-    status = await MasterModel.update(session=session, update_data=master_to_upd)
-    return status
-
-async def cancel_appointment(appointment_id, session: AsyncSession):
-    status = await AppointmentModel.delete(session = session, id=appointment_id)
-    return status
-
-async def create_master(user: User, chat: Chat, organization_id: uuid.UUID, session: AsyncSession):
-    organization = await OrganizationModel.get_org_by_id(session=session, id = organization_id)
-    master = MasterCreateRequest(chat_id=chat.id,
-                                 organization_id=organization_id,
-                                 username=user.username,
-                                 working_day_start=organization.day_start_template,
-                                 working_day_end = organization.day_end_template,
-                                 day_off = organization.day_off)
-    if await MasterModel.create(session=session, data=master.model_dump()):
-        return "success"
-    return "unable to create"
-
-async def create_user(user: User, chat: Chat, organization_id: uuid.UUID, session: AsyncSession):
-    user = UserCreateRequest(chat_id=chat.id,
-                             organization_id=organization_id,
-                             username=user.username)
-    if await UserModel.create(session=session, data=user.model_dump()):
-        return "success"
-    return "unable to create"
-
-async def create_organization(org_request: OrganizationCreateRequest, session: AsyncSession):
-    org_dict = org_request.model_dump()
-    unique_code = str(uuid.uuid4())
-    hash_uni = hashlib.sha256(unique_code.encode()).hexdigest()
-    org_dict["unique_code_master"] = hash_uni[0:32]
-    org_dict["unique_code_user"] = hash_uni[32:64]
-    status, org_id = await OrganizationModel.create(session=session, data=org_dict)
-    return status, hash_uni[0:32], hash_uni[32:64], org_id
-
-async def update_organization(update_data: OrganizationUpdateRequest, session: AsyncSession):
-    org_to_upd = update_data.model_dump(exclude_unset=True)
-    status = await OrganizationModel.update(session=session, update_data=org_to_upd)
-    return status
-
-async def delete_organization(delete_id: uuid.UUID, session: AsyncSession):
-    org = await session.get(OrganizationModel, delete_id)
-    if not org:
-        return "organization not found"
-    await session.delete(org)
-    await session.commit()
-    return "success"
-
-
-"""price fetches"""
-async def create_price_position(price_position: PriceCreateRequest, session: AsyncSession):
-    price_dict = price_position.model_dump()
-    status, id = await PriceModel.create(session=session, data=price_dict)
-    return status, id
-
-
-async def update_price(update_data: PriceUpdateRequest, session: AsyncSession):
-    org_to_upd = update_data.model_dump(exclude_unset=True)
-    status = await PriceModel.update(session=session, update_data=org_to_upd)
-    return status
-
-async def delete_price(delete_id: uuid.UUID, session: AsyncSession):
-    price = await session.get(PriceModel, delete_id)
+async def create_appointment(
+        appointment_request: AppointmentCreateRequest,
+        session: AsyncSession
+) -> str:
+    """Создание записи"""
+    price = await PriceModel.get_by_id(session=session, price_id=appointment_request.price_id)
     if not price:
         return "price not found"
 
-    # Удалит каскадно appointments и individual_prices
-    await session.delete(price)
-    await session.commit()
-    return "success"
+    appointment_dict = appointment_request.model_dump()
+
+    possible_times = await get_possible_start_time(appointment_dict["master_id"], appointment_dict["date"],appointment_dict["price_id"], session=session)
+    if appointment_dict["start_time"] in possible_times:
+        # Получаем или создаём working_day
+        working_day = await WorkingDayModel.get_by_master_and_date(
+            session=session,
+            master_id=appointment_dict["master_id"],
+            day_date=appointment_dict["date"]
+        )
+
+        if not working_day:
+            # Создаём из week_template
+            weekday = _get_weekday_caps(appointment_dict["date"]).value
+            week_template = await WeekTemplateModel.get_by_master_and_weekday(
+                session=session,
+                master_id=appointment_dict["master_id"],
+                weekday=weekday
+            )
+            if week_template:
+                wd_data = {
+                    "master_id": appointment_dict["master_id"],
+                    "day_date": appointment_dict["date"],
+                    "start_time": week_template.start_time,
+                    "end_time": week_template.end_time,
+                    "address": week_template.address
+                }
+                wd_id = await WorkingDayModel.create(session=session, data=wd_data)
+                working_day = await WorkingDayModel.get_by_id(session=session, id=wd_id)
+
+        if working_day:
+            appointment_dict["working_day_id"] = working_day.id
+
+        appointment_dict["final_price"] = price.price
+
+        status = await AppointmentModel.create(session=session, data=appointment_dict)
+        return status
+    return "unpredictable error"
+
+async def cancel_appointment(appointment_id: uuid.UUID, session: AsyncSession) -> str:
+    """Отмена записи"""
+    return await AppointmentModel.delete(session=session, appointment_id=appointment_id)
+
+async def get_week_timetable(
+        master_id: uuid.UUID,
+        start_date: datetime,
+        session: AsyncSession
+) -> Tuple[List[List[dict]], str]:
+    """Получение расписания на неделю"""
+    week_list = _get_week_dates(start_date)
+    week_appointments = []
+
+    for day in week_list:
+        appointments, count, status, addresses, names = await get_appointments_by_date(
+            master_id=master_id,
+            app_date=day,
+            session=session
+        )
+        day_appointments = []
+        for i, appointment in enumerate(appointments):
+            aresponse = AppointmentResponse.model_validate(appointment).model_dump()
+            aresponse["address"] = addresses[i] if i < len(addresses) else None
+            aresponse["service_name"] = names[i] if i < len(names) else None
+            day_appointments.append(aresponse)
+
+        week_appointments.append(day_appointments)
+
+    return week_appointments, "success"
+
+
+# ==================== MASTERS ====================
+async def update_master(update_data, session: AsyncSession) -> str:
+    """Обновление данных мастера"""
+    master_to_upd = update_data.model_dump(exclude_unset=True)
+    return await MasterModel.update(
+        session=session,
+        master_id=update_data.id,
+        update_data=master_to_upd
+    )
+
+async def create_master(
+        user: User,
+        chat: Chat,
+        session: AsyncSession,
+        working_day_start: time = None,
+        working_day_end: time = None
+) -> str:
+    """Создание мастера"""
+    master_data = MasterCreateRequest(
+        chat_id=chat.id,
+        username=user.username,
+        full_name=user.full_name if hasattr(user, 'full_name') else None,
+        working_day_start=_timedelta_to_int_minutes(
+            _time_to_timedelta(working_day_start)) if working_day_start else 540,  # 9:00
+        working_day_end=_timedelta_to_int_minutes(_time_to_timedelta(working_day_end)) if working_day_end else 1080
+        # 18:00
+    )
+
+    master_id = await MasterModel.create(session=session, data=master_data.model_dump())
+    if master_id:
+        return "success"
+    return "unable to create"
+
+async def get_master_categories(master_id: uuid.UUID, session: AsyncSession) -> List[CategoryModel]:
+    """Получение категорий мастера"""
+    return await MasterModel.get_categories(session=session, master_id=master_id)
+
+
+async def create_user(
+        user: User,
+        chat: Chat,
+        session: AsyncSession
+) -> str:
+    """Создание пользователя"""
+    user_data = UserCreateRequest(
+        chat_id=chat.id,
+        username=user.username
+    )
+
+    created = await UserModel.create(session=session, data=user_data.model_dump())
+    if created:
+        return "success"
+    return "unable to create"
 
 
 
-async def user_master_deeplink(args: str, session: AsyncSession):
-    master_res, master_status = await OrganizationModel.get_by_master_unique(session=session, unique_code=args)
-    user_res, user_status = await OrganizationModel.get_by_user_unique(session=session, unique_code=args)
-    logging.info(f"user_res {user_res}")
-    logging.info(f"master_res {master_res}")
-    if master_status:
-        return 0, master_res
-    elif user_status:
-        return 1, user_res
-    else:
-        return 2, None
+"""price fetches"""
+async def create_price_position(
+    price_position: PriceCreateRequest,
+    session: AsyncSession
+) -> Tuple[str, uuid.UUID]:
+    """Создание позиции прайса"""
+    price_dict = price_position.model_dump()
+    return await PriceModel.create(session=session, data=price_dict)
 
+
+async def update_price(
+    update_data: PriceUpdateRequest,
+    session: AsyncSession
+) -> str:
+    """Обновление позиции прайса"""
+    price_to_upd = update_data.model_dump(exclude_unset=True)
+    return await PriceModel.update(
+        session=session,
+        price_id=update_data.id,
+        update_data=price_to_upd
+    )
+
+
+async def delete_price(
+    delete_id: uuid.UUID,
+    session: AsyncSession
+) -> str:
+    """Удаление позиции прайса"""
+    return await PriceModel.delete(session=session, price_id=delete_id)
+
+#TODO сделать диплинки для рефералки
+async def user_master_deeplink(
+        args: str,
+        session: AsyncSession
+) -> Tuple[int, Optional[uuid.UUID]]:
+    """
+    Обработка deeplink
+    Возвращает: (type, id)
+    type: 0 - мастер, 1 - пользователь, 2 - не найдено
+    """
+    try:
+        master_uuid = uuid.UUID(args)
+        master = await MasterModel.get_by_id(session=session, master_id=master_uuid)
+        if master:
+            return 0, master_uuid
+    except ValueError:
+        pass
+
+    # Пробуем найти по chat_id
+    try:
+        chat_id = int(args)
+        master = await MasterModel.get_by_chat_id(session=session, chat_id=chat_id)
+        if master:
+            return 0, master.id
+
+        user = await UserModel.get_by_chat_id(session=session, chat_id=chat_id)
+        if user:
+            return 1, user.id
+    except ValueError:
+        pass
+
+    return 2, None
+
+
+# ==================== WORKING DAYS ====================
+async def create_working_day(
+        master_id: uuid.UUID,
+        day_date: date,
+        start_time: int,
+        end_time: int,
+        address: Optional[str],
+        session: AsyncSession
+) -> uuid.UUID:
+    """Создание рабочего дня"""
+    data = {
+        "master_id": master_id,
+        "day_date": day_date,
+        "start_time": start_time,
+        "end_time": end_time,
+        "address": address
+    }
+    return await WorkingDayModel.create(session=session, data=data)
+
+
+async def get_working_days_by_master(
+        master_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+        session: AsyncSession
+) -> List[dict]:
+    """Получение рабочих дней мастера за период"""
+    working_days = await WorkingDayModel.get_by_id_and_dates(id = master_id, sd = start_date, ed = end_date, session=session)
+
+    return [
+        {
+            "id": str(wd.id),
+            "date": wd.day_date,
+            "start_time": wd.start_time,
+            "end_time": wd.end_time,
+            "address": wd.address
+        }
+        for wd in working_days
+    ]
+
+
+# ==================== WEEK TEMPLATE ====================
+async def set_week_template(
+        master_id: uuid.UUID,
+        weekday: int,
+        start_time: int,
+        end_time: int,
+        address: Optional[str],
+        session: AsyncSession
+) -> uuid.UUID:
+    """Установка шаблона недели"""
+    # Удаляем существующий шаблон для этого дня
+    existing = await WeekTemplateModel.get_by_master_and_weekday(
+        session=session,
+        master_id=master_id,
+        weekday=weekday
+    )
+    if existing:
+        await session.delete(existing)
+
+    data = {
+        "master_id": master_id,
+        "weekday": weekday,
+        "start_time": start_time,
+        "end_time": end_time,
+        "address": address
+    }
+    return await WeekTemplateModel.create(session=session, data=data)
+
+# ==================== MASTER ABSENCES ====================
+async def add_absence(
+        master_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+        reason: Optional[str],
+        session: AsyncSession
+) -> uuid.UUID:
+    """Добавление отсутствия мастера"""
+    data = {
+        "master_id": master_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "reason": reason
+    }
+    return await MasterAbsenceModel.create(session=session, data=data)
+
+async def get_absences_by_master(
+        master_id: uuid.UUID,
+        session: AsyncSession
+) -> List[dict]:
+    """Получение периодов отсутствия мастера"""
+    absences = await MasterAbsenceModel.get_by_master_id(
+        session=session,
+        master_id=master_id
+    )
+    return [
+        {
+            "id": str(a.id),
+            "start_date": a.start_date,
+            "end_date": a.end_date,
+            "reason": a.reason
+        }
+        for a in absences
+    ]
+
+# ==================== CATEGORIES ====================
+async def get_all_categories(session: AsyncSession) -> List[dict]:
+    """Получение всех категорий"""
+    categories = await CategoryModel.get_all(session=session)
+    return [
+        {
+            "id": str(cat.id),
+            "name": cat.name
+        }
+        for cat in categories
+    ]
+
+async def create_category(
+        name: str,
+        session: AsyncSession
+) -> uuid.UUID:
+    """Создание категории"""
+    category = CategoryModel(name=name)
+    session.add(category)
+    await session.flush()
+    return category.id
 
 

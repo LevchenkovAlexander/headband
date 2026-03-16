@@ -223,11 +223,19 @@ class MasterCategoryModel(Base):
     __tablename__ = "master_categories"
 
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"), primary_key=True)
-    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
+    category_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
 
     # Relationships
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="master_categories")
     category: Mapped["CategoryModel"] = relationship("CategoryModel", back_populates="master_categories")
+
+    @classmethod
+    async def get_categories_by_master(cls, id: uuid.UUID, session: AsyncSession):
+        query = select(cls).where(cls.master_id == id)
+        result = await session.execute(query)
+        categories = result.scalars().all()
+        category_ids = [cat.id for cat in categories]
+        return category_ids
 
 
 
@@ -268,6 +276,23 @@ class WorkingDayModel(Base):
         query = select(cls).where(cls.master_id == master_id)
         result = await session.execute(query)
         return result.scalars().all()
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, id: uuid.UUID):
+        query = select(cls).where(cls.id == id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_id_and_dates(cls, id: uuid.UUID, sd: date, ed: date, session: AsyncSession):
+        query = select(WorkingDayModel).where(
+            WorkingDayModel.master_id == id,
+            WorkingDayModel.day_date >= sd,
+            WorkingDayModel.day_date <= ed
+        )
+        result = await session.execute(query)
+        return result.scalars().all()
+
 
 
 class WeekTemplateModel(Base):
@@ -456,12 +481,19 @@ class GuidesModel(Base):
     __tablename__ = "guides"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category: Mapped[str]
     steps: Mapped[str] = mapped_column(String)
     author: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
     @classmethod
     async def get_all(cls, session: AsyncSession):
         query = select(cls)
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def get_by_categories(cls, categories: List[str], session: AsyncSession):
+        query = select(cls).where(cls.category.in_(categories))
         result = await session.execute(query)
         return result.scalars().all()
 
