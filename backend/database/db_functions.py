@@ -16,8 +16,6 @@ from backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta,
     _get_week_dates, _timedelta_to_time
 from datetime import timedelta, date, time, datetime
 
-from backend.telegram_bot import BOT_URL
-
 
 # ==================== GUIDES ====================
 async def get_guides(master_id: uuid.UUID, session: AsyncSession) -> Tuple[str, List[dict], List[dict]]:
@@ -534,9 +532,9 @@ async def create_category(
         session: AsyncSession
 ) -> uuid.UUID:
     """Создание категории"""
-    category = CategoryModel(name=name)
-    session.add(category)
-    await session.flush()
-    return category.id
+    data = {"name": name}
+    return await CategoryModel.create(session=session, data = data)
 
 
+async def get_prices_by_master(master_id: uuid.UUID, session: AsyncSession):
+    return await PriceModel.get_by_master_id(session=session, master_id=master_id)

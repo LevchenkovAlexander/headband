@@ -5,10 +5,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from headband.backend import database as db
+from backend.telegram_bot import bot_main
 
-from headband.backend.database import AsyncSessionLocal
-from headband.backend.telegram_bot import bot_main
+import database as db
 
 app = FastAPI(
     title="Headband API",

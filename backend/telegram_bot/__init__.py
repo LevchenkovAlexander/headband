@@ -2,17 +2,20 @@ import logging
 import os
 
 from aiogram import Bot, Dispatcher, types
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database import db_functions
+
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 BOT_URL = os.getenv('BOT_URL')
 
-from headband.backend.database import db_functions, AsyncSession
 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
 
-async def handle_deeplink(message: types.Message, args: str, session: AsyncSession):
+'''async def handle_deeplink(message: types.Message, args: str, session: AsyncSession):
     user = message.from_user
     chat = message.chat
     logging.info(args)
@@ -27,5 +30,5 @@ async def handle_deeplink(message: types.Message, args: str, session: AsyncSessi
         status = await db_functions.create_user(user, chat, res)
         logging.info(f"{status} user with id {chat.id}")
         return "Добро пожаловать, для ознакомления с ассортиментом зайдите в tg mini app"
-    return "Ссылка недействительна"
+    return "Ссылка недействительна"'''
 

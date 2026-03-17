@@ -1,12 +1,11 @@
 import logging
 import os
 import uuid
-from contextlib import asynccontextmanager
 from enum import Enum
 from typing import List, Optional, AsyncGenerator
 
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, update, delete, text, func, BigInteger, String, Date, Integer
+from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, date
@@ -27,7 +26,22 @@ AsyncSessionLocal = async_sessionmaker(
 async def setup_database():
     try:
         async with engine.begin() as conn:
+            """tables_result = await conn.execute(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            )
+            tables = [row[0] for row in tables_result.fetchall()]
+
+            await conn.execute(text("SET CONSTRAINTS ALL DEFERRED"))
+
+            for table in tables:
+                try:
+                    await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+                    logging.info(f"Таблица {table} удалена")
+                except Exception as e:
+                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")"""
+
             await conn.run_sync(Base.metadata.create_all)
+
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
             logging.info(f"Таблицы в базе данных: {tables}")
             return True
@@ -138,6 +152,13 @@ class CategoryModel(Base):
         query = select(cls).where(cls.id == category_id)
         result = await session.execute(query)
         return result.scalars().first()
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        category = cls(**data)
+        session.add(category)
+        await session.flush()
+        return "success"
 
 
 class MasterModel(Base):
@@ -431,9 +452,9 @@ class AppointmentModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
-    date: Mapped[date] = mapped_column(Date)
-    start_time: Mapped[time] = mapped_column(String)
-    final_price: Mapped[int] = mapped_column(BigInteger)
+    date: Mapped[date]
+    start_time: Mapped[time]
+    final_price: Mapped[int]
     price_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prices.id", ondelete="CASCADE"))
     working_day_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("working_days.id", ondelete="CASCADE"))
 
@@ -452,13 +473,13 @@ class AppointmentModel(Base):
 
     @classmethod
     async def get_by_master_and_date(cls, session: AsyncSession, master_id: uuid.UUID, app_date: date):
-        query = select(cls).where(cls.master_id == master_id, cls.date == app_date).order_by(cls.time)
+        query = select(cls).where(cls.master_id == master_id, cls.date == app_date).order_by(cls.start_time)
         result = await session.execute(query)
         return result.scalars().all()
 
     @classmethod
     async def get_by_user_id(cls, session: AsyncSession, user_id: uuid.UUID):
-        query = select(cls).where(cls.user_id == user_id).order_by(cls.date, cls.time)
+        query = select(cls).where(cls.user_id == user_id).order_by(cls.date, cls.start_time)
         result = await session.execute(query)
         return result.scalars().all()
 
@@ -482,7 +503,7 @@ class GuidesModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     category: Mapped[str]
-    steps: Mapped[str] = mapped_column(String)
+    steps: Mapped[str]
     author: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
     @classmethod
@@ -499,7 +520,7 @@ class GuidesModel(Base):
 
     @classmethod
     async def get_by_id(cls, session: AsyncSession, guide_id: uuid.UUID):
-        query = select(cls).where(cls.id == guide_id)
+        query = select(cls.steps).where(cls.id == guide_id)
         result = await session.execute(query)
         return result.scalars().first()
 

@@ -1,112 +1,183 @@
-import uuid
-from datetime import time, date
-from typing import List, Dict, Any, Optional
+from datetime import date, time
+from typing import List, Optional
+from uuid import UUID
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, ConfigDict, EmailStr
 
-
+# ==================== BASE ====================
 class StatusResponse(BaseModel):
     status: str
 
-class IDResponse(StatusResponse):
-    id: uuid.UUID
 
-class OrganizationResponse(IDResponse):
-    tg_master: str
-    tg_user: str
-
-class AppointmentListResponse(StatusResponse):
-    count: int = 0
-    appointments: List[Dict] = []
-
-
-class PossibleTimesResponse(StatusResponse):
-    times: List[time] = []
-
-class WeekTimetableResponse(StatusResponse):
-    week_appointments: List[List[Dict[str, Any]]] = []
-
-
+# ==================== APPOINTMENTS ====================
 class AppointmentResponse(BaseModel):
-    id: uuid.UUID
-    user_id: uuid.UUID
-    master_id: uuid.UUID
+    id: UUID
+    user_id: UUID
+    master_id: UUID
     date: date
-    start_time: time
-    end_time: time
-    price_id: uuid.UUID
-    address: Optional[str] = "no_info"
-    service_name: Optional[str] = "no_info"
+    time: time
+    final_price: int
+    price_id: UUID
+    working_day_id: UUID
+    address: Optional[str] = None
+    service_name: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
-class AdminResponseMasters(IDResponse):
-    username: str
-    full_name: str
-    working_day_start: time
-    working_day_end: time
-    day_off: str
-    categories: str
 
-class AdminResponseSpecialOffers(IDResponse):
-    organization_id: uuid.UUID
+class AppointmentListResponse(BaseModel):
+    status: str
+    count: int
+    appointments: List[AppointmentResponse]
+
+
+class PossibleTimesResponse(BaseModel):
+    status: str
+    times: List[time]
+
+
+class WeekTimetableResponse(BaseModel):
+    status: str
+    week_appointments: List[List[AppointmentResponse]]
+
+
+# ==================== GUIDES ====================
+class GuideBaseResponse(BaseModel):
+    id: UUID
+    steps: str
+    author: UUID
+
+
+class GuidePageResponse(BaseModel):
+    status: str
+    guides_fit: List[GuideBaseResponse]
+    guides_all: List[GuideBaseResponse]
+
+
+class GuideStepResponse(BaseModel):
+    status: str
+    steps: Optional[str] = None
+
+
+# ==================== MASTERS ====================
+class MasterBaseResponse(BaseModel):
+    id: UUID
+    chat_id: int
+    username: Optional[str] = None
+    full_name: Optional[str] = None
+    working_day_start: int  # минуты от начала дня
+    working_day_end: int
+    categories: List[str] = Field(default_factory=list)
+
+
+class MasterUpdateResponse(BaseModel):
+    status: str
+
+
+class MasterCategoriesResponse(BaseModel):
+    status: str
+    categories: List[dict]
+
+
+class MasterPricesResponse(BaseModel):
+    status: str
+    prices: List[dict]
+
+
+# ==================== USERS ====================
+class UserBaseResponse(BaseModel):
+    id: UUID
+    chat_id: int
+    username: Optional[str] = None
+
+
+class UserResponseMainPage(BaseModel):
+    status: str
+    appointments: List[AppointmentResponse]
+    categories: List[str]
+
+
+class MasterListItem(BaseModel):
+    id: UUID
     name: str
-    deadline_start: Optional[date]
-    deadline_end: Optional[date]
+    address: Optional[str] = None
+    subcategories: List[str] = Field(default_factory=list)
 
-class AdminResponseOrganizations(OrganizationResponse):
+
+class UserResponseMastersPage(BaseModel):
+    status: str
+    masters: List[MasterListItem]
+
+
+# ==================== CATEGORIES ====================
+class CategoryBaseResponse(BaseModel):
+    id: UUID
     name: str
-    address: str
-    categories: str
 
-class AdminResponseInfo(IDResponse):
-    email: EmailStr
-    end_of_subscription: date
-    num_organizations: int
+
+class CategoriesResponse(BaseModel):
+    status: str
+    categories: List[CategoryBaseResponse]
+
+
+# ==================== PRICES ====================
+class PriceBaseResponse(BaseModel):
+    id: UUID
+    name: str
+    price: int
+    category_id: UUID
+    approximate_time: int  # минуты
+    master_id: UUID
+
+
+class PriceListResponse(BaseModel):
+    status: str
+    prices: List[PriceBaseResponse]
+
+
+# ==================== ADMIN ====================
+class AdminInfoResponse(BaseModel):
+    status: str
+    id: UUID
     num_masters: int
     num_users: int
-    organizations: List[Dict]
-    masters: List[Dict]
-    offers: List[Dict]
-
-class OrgnaizationBaseResponse(BaseModel):
-    id: uuid.UUID
-    name: str
-
-class OrganizationFilterResponse(StatusResponse):
-    organizations: List[OrgnaizationBaseResponse] | []
-
-class GuideResponse(BaseModel):
-    id: uuid.UUID
-    name: str
-    category: str
-
-class GuidePageResponse(StatusResponse):
-    guides_fit: List[GuideResponse] | []
-    guides_all: List[GuideResponse] | []
-
-class StepResponse(StatusResponse):
-    steps: Text
-
-class UserResponseMainPage(StatusResponse):
-    appointments: Optional[List[Dict]] = None
-    categories: str
-
-class UserResponseMastersOnMastersPage(BaseModel):
-    id: uuid.UUID
-    name: str
-    address: str
-    subcategories: str
-
-class UserResponseMastersPage(StatusResponse):
-    masters: Optional[List[UserResponseMastersOnMastersPage]] = None
+    masters: List[MasterBaseResponse]
 
 
+# ==================== WORKING DAYS ====================
+class WorkingDayResponse(BaseModel):
+    id: UUID
+    date: date
+    start_time: int  # минуты
+    end_time: int
+    address: Optional[str] = None
 
 
+class WorkingDaysListResponse(BaseModel):
+    status: str
+    working_days: List[WorkingDayResponse]
 
 
+# ==================== WEEK TEMPLATE ====================
+class WeekTemplateResponse(BaseModel):
+    id: UUID
+    weekday: int  # 1-7
+    start_time: int  # минуты
+    end_time: int
+    address: Optional[str] = None
 
 
+class WeekTemplateListResponse(BaseModel):
+    status: str
+    templates: List[WeekTemplateResponse]
 
 
+# ==================== MASTER ABSENCES ====================
+class MasterAbsenceResponse(BaseModel):
+    id: UUID
+    start_date: date
+    end_date: date
+    reason: Optional[str] = None
 
+
+class MasterAbsencesListResponse(BaseModel):
+    status: str
+    absences: List[MasterAbsenceResponse]
