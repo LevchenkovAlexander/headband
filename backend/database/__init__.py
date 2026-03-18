@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional, AsyncGenerator
 
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text
+from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text, delete, and_
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, date
@@ -26,7 +26,7 @@ AsyncSessionLocal = async_sessionmaker(
 async def setup_database():
     try:
         async with engine.begin() as conn:
-            """tables_result = await conn.execute(
+            '''tables_result = await conn.execute(
                 text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
             )
             tables = [row[0] for row in tables_result.fetchall()]
@@ -38,7 +38,7 @@ async def setup_database():
                     await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
                     logging.info(f"Таблица {table} удалена")
                 except Exception as e:
-                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")"""
+                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")'''
 
             await conn.run_sync(Base.metadata.create_all)
 
@@ -208,6 +208,12 @@ class MasterModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+    addresses: Mapped[List["AddressModel"]] = relationship(
+        "AddressModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -268,10 +274,11 @@ class WorkingDayModel(Base):
     day_date: Mapped[date] = mapped_column(Date)
     start_time: Mapped[time]
     end_time: Mapped[time]
-    address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("addresses.id", ondelete="CASCADE"))
 
     # Relationships
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="working_days")
+    address: Mapped["AddressModel"] = relationship("AddressModel", back_populates="working_days")
     appointments: Mapped[List["AppointmentModel"]] = relationship(
         "AppointmentModel",
         back_populates="working_day",
@@ -321,13 +328,14 @@ class WeekTemplateModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
-    weekday: Mapped[int] = mapped_column(BigInteger)
+    weekday: Mapped[int]
     start_time: Mapped[time]
     end_time: Mapped[time]
-    address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("addresses.id", ondelete="CASCADE"))
 
     # Relationships
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="week_templates")
+    address: Mapped["AddressModel"] = relationship("AddressModel", back_populates="week_templates")
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -348,6 +356,17 @@ class WeekTemplateModel(Base):
         result = await session.execute(query)
         return result.scalars().first()
 
+    @classmethod
+    async def delete_by_master_id_weekday(cls, session: AsyncSession, master_id: uuid.UUID, weekday: int) -> str:
+        query = delete(cls).where(and_(cls.master_id == master_id, cls.weekday == weekday))
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def update(cls, session: AsyncSession, template_id: uuid.UUID, update_data: dict) -> str:
+        query = update(cls).where(cls.id == template_id).values(**update_data)
+        await session.execute(query)
+        return "success"
 
 class MasterAbsenceModel(Base):
     __tablename__ = "master_absences"
@@ -383,8 +402,61 @@ class MasterAbsenceModel(Base):
         result = await session.execute(query)
         return result.scalars().first() is not None
 
+class AddressModel(Base):
+    __tablename__ = "addresses"
 
-# ==================== PRICES ====================
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
+    address: Mapped[str]
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="addresses")
+    working_days: Mapped[List["WorkingDayModel"]] = relationship(
+        "WorkingDayModel",
+        back_populates="address",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    week_templates: Mapped[List["WeekTemplateModel"]] = relationship(
+        "WeekTemplateModel",
+        back_populates="address",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        address = cls(**data)
+        session.add(address)
+        await session.flush()
+        return address.id
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, address_id: uuid.UUID):
+        query = select(cls).where(cls.id == address_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, address_id: uuid.UUID):
+        obj = await session.get(cls, address_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such address"
+
+    @classmethod
+    async def update(cls, session: AsyncSession, address_id: uuid.UUID, update_data: dict) -> str:
+        query = update(cls).where(cls.id == address_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+
 class PriceModel(Base):
     __tablename__ = "prices"
 
@@ -445,7 +517,6 @@ class PriceModel(Base):
         return "no such price"
 
 
-# ==================== APPOINTMENTS ====================
 class AppointmentModel(Base):
     __tablename__ = "appointments"
 
@@ -502,6 +573,7 @@ class GuidesModel(Base):
     __tablename__ = "guides"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str]
     category: Mapped[str]
     steps: Mapped[str]
     author: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))

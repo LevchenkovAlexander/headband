@@ -119,3 +119,31 @@ class MastersPageRequest(BaseModel):
     chat_id: int
     category: int
     filter: Optional[List[uuid.UUID]] = None
+
+class AddressCreateRequest(BaseModel):
+    master_id: uuid.UUID
+    address: str
+
+class AddressUpdateRequest(BaseModel):
+    id: uuid.UUID
+    address: str
+
+class WeekTemplate(BaseModel):
+    weekday: int
+    start_time: time
+    end_time: time
+    address_id: uuid.UUID
+
+class TemplateCreateRequest(BaseModel):
+    master_id: uuid.UUID
+    days: List[WeekTemplate]
+
+class TemplateUpdateRequest(BaseModel):
+    master_id: uuid.UUID
+    weekday: int
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    address_id: Optional[uuid.UUID] = None
+
+
+

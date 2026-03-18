@@ -1,13 +1,15 @@
 import uuid
 from datetime import date, datetime
+from typing import List
 
 from fastapi import Depends, APIRouter, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import db_functions, get_db_session
-from backend.database.requests import MasterUpdateRequest
+from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
+    TemplateCreateRequest, TemplateUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
-    WeekTimetableResponse, GuidePageResponse
+    WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse
 
 router = APIRouter(
     prefix="/masters",
@@ -163,3 +165,105 @@ async def get_master_prices(
         "prices": prices
     }
 
+@router.get("/addresses", response_model=AddressListResponse)
+async def get_master_addresses(
+    master_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение всех адресов мастера"""
+    addresses = await db_functions.get_addresses_by_master(
+        master_id=master_id,
+        session=session
+    )
+    return {
+        "status": "success",
+        "addresses": addresses
+    }
+
+
+@router.post("/addresses", response_model=IDResponse)
+async def create_address(
+    request: AddressCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Создание нового адреса"""
+    address_id = await db_functions.create_address(
+        master_id=request.master_id,
+        address=request.address,
+        session=session
+    )
+    return {
+        "status": "success",
+        "id": address_id
+    }
+
+
+@router.delete("/addresses/{address_id}", response_model=StatusResponse)
+async def delete_address(
+    address_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Удаление адреса"""
+    status = await db_functions.delete_address(
+        address_id=address_id,
+        session=session
+    )
+    return {"status": status}
+
+
+@router.patch("/addresses/update", response_model=StatusResponse)
+async def update_address(
+    request: AddressUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Обновление адреса"""
+    status = await db_functions.update_address(
+        address_id=request.id,
+        address=request.address,
+        session=session
+    )
+    return {"status": status}
+
+@router.post("/week_template", response_model=StatusResponse)
+async def set_template(
+        request: TemplateCreateRequest,
+        session: AsyncSession = Depends(get_db_session)):
+    """Создание шаблона недели"""
+    status = await db_functions.set_week_template_full(
+        master_id=request.master_id,
+        templates=request.days,
+        session=session
+    )
+    return {"status": status}
+
+@router.get("/week-template", response_model=WeekTemplateResponse)
+async def get_week_template(
+    master_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение текущего шаблона недели"""
+    templates = await db_functions.get_week_template_by_master(
+        master_id=master_id,
+        session=session
+    )
+    return {
+        "status": "success",
+        "templates": templates
+    }
+
+@router.patch("/week_template", response_model=StatusResponse)
+async def update_week_template(
+    request: TemplateUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)):
+    """Обновление конкретного дня"""
+    status = await db_functions.update_week_template(req=request, session=session)
+    return {"status": status}
+
+@router.delete("/week_template", response_model=StatusResponse)
+async def delete_day_week_template(
+    master_id: uuid.UUID,
+    weekday: int,
+    session: AsyncSession = Depends(get_db_session)):
+    """Удаление дня (добавление выходного)"""
+    status = await db_functions.delete_day(id=master_id, weekday=weekday, session=session)
+    return {"status": status}

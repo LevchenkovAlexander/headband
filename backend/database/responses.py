@@ -1,15 +1,18 @@
+import uuid
 from datetime import date, time
 from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
+from backend.database.requests import WeekTemplate
 
-# ==================== BASE ====================
+
 class StatusResponse(BaseModel):
     status: str
 
+class IDResponse(StatusResponse):
+    id: uuid.UUID
 
-# ==================== APPOINTMENTS ====================
 class AppointmentResponse(BaseModel):
     id: UUID
     user_id: UUID
@@ -39,7 +42,6 @@ class WeekTimetableResponse(BaseModel):
     week_appointments: List[List[AppointmentResponse]]
 
 
-# ==================== GUIDES ====================
 class GuideBaseResponse(BaseModel):
     id: UUID
     steps: str
@@ -57,7 +59,6 @@ class GuideStepResponse(BaseModel):
     steps: Optional[str] = None
 
 
-# ==================== MASTERS ====================
 class MasterBaseResponse(BaseModel):
     id: UUID
     chat_id: int
@@ -82,7 +83,6 @@ class MasterPricesResponse(BaseModel):
     prices: List[dict]
 
 
-# ==================== USERS ====================
 class UserBaseResponse(BaseModel):
     id: UUID
     chat_id: int
@@ -107,7 +107,6 @@ class UserResponseMastersPage(BaseModel):
     masters: List[MasterListItem]
 
 
-# ==================== CATEGORIES ====================
 class CategoryBaseResponse(BaseModel):
     id: UUID
     name: str
@@ -118,7 +117,6 @@ class CategoriesResponse(BaseModel):
     categories: List[CategoryBaseResponse]
 
 
-# ==================== PRICES ====================
 class PriceBaseResponse(BaseModel):
     id: UUID
     name: str
@@ -133,7 +131,6 @@ class PriceListResponse(BaseModel):
     prices: List[PriceBaseResponse]
 
 
-# ==================== ADMIN ====================
 class AdminInfoResponse(BaseModel):
     status: str
     id: UUID
@@ -142,7 +139,6 @@ class AdminInfoResponse(BaseModel):
     masters: List[MasterBaseResponse]
 
 
-# ==================== WORKING DAYS ====================
 class WorkingDayResponse(BaseModel):
     id: UUID
     date: date
@@ -156,21 +152,25 @@ class WorkingDaysListResponse(BaseModel):
     working_days: List[WorkingDayResponse]
 
 
-# ==================== WEEK TEMPLATE ====================
-class WeekTemplateResponse(BaseModel):
+
+
+
+class WeekTemplateResp(BaseModel):
     id: UUID
-    weekday: int  # 1-7
-    start_time: int  # минуты
-    end_time: int
+    weekday: int
+    start_time: time
+    end_time: time
+    address_id: uuid.UUID
     address: Optional[str] = None
 
+class WeekTemplateResponse(StatusResponse):
+    templates: List[WeekTemplateResp]
 
 class WeekTemplateListResponse(BaseModel):
     status: str
     templates: List[WeekTemplateResponse]
 
 
-# ==================== MASTER ABSENCES ====================
 class MasterAbsenceResponse(BaseModel):
     id: UUID
     start_date: date
@@ -181,3 +181,12 @@ class MasterAbsenceResponse(BaseModel):
 class MasterAbsencesListResponse(BaseModel):
     status: str
     absences: List[MasterAbsenceResponse]
+
+class AddressBaseResponse(BaseModel):
+    id: UUID
+    address: str
+    master_id: UUID
+
+class AddressListResponse(BaseModel):
+    status: str
+    addresses: List[AddressBaseResponse]

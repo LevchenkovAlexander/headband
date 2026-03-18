@@ -1,15 +1,17 @@
-
+import logging
 import uuid
 from typing import Tuple, Optional, List
 
 from aiogram.types import User, Chat
+from sqlalchemy import update, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import AppointmentModel, MasterModel, UserModel, \
     PriceModel, GuidesModel, CategoryModel, MasterCategoryModel, MasterAbsenceModel, WeekTemplateModel, \
-    WorkingDayModel
+    WorkingDayModel, AddressModel, Week
 
-from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, PriceCreateRequest, PriceUpdateRequest
+from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
+    PriceCreateRequest, PriceUpdateRequest, WeekTemplate, TemplateUpdateRequest
 from backend.database.responses import AppointmentResponse
 
 from backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
@@ -167,9 +169,12 @@ async def get_appointments_by_date(
         price = await PriceModel.get_by_id(session=session, price_id=a.price_id)
         if price:
             names.append(price.name)
-            # Получаем адрес из working_day
             working_day = await WorkingDayModel.get_by_id(session=session, id=a.working_day_id)
-            addresses.append(working_day.address if working_day else None)
+            if working_day and working_day.address:
+                addr = await AddressModel.get_by_id(session=session, address_id=working_day.address_id)
+                addresses.append(addr.address if addr else None)
+            else:
+                addresses.append(None)
         else:
             names.append(None)
             addresses.append(None)
@@ -290,7 +295,6 @@ async def get_week_timetable(
     return week_appointments, "success"
 
 
-# ==================== MASTERS ====================
 async def update_master(update_data, session: AsyncSession) -> str:
     """Обновление данных мастера"""
     master_to_upd = update_data.model_dump(exclude_unset=True)
@@ -538,3 +542,133 @@ async def create_category(
 
 async def get_prices_by_master(master_id: uuid.UUID, session: AsyncSession):
     return await PriceModel.get_by_master_id(session=session, master_id=master_id)
+
+async def create_address(
+    master_id: uuid.UUID,
+    address: str,
+    session: AsyncSession
+) -> uuid.UUID:
+    """Создание адреса"""
+    data = {
+        "master_id": master_id,
+        "address": address
+    }
+    return await AddressModel.create(session=session, data=data)
+
+
+async def get_addresses_by_master(
+    master_id: uuid.UUID,
+    session: AsyncSession
+) -> List[dict]:
+    """Получение всех адресов мастера"""
+    addresses = await AddressModel.get_by_master_id(
+        session=session,
+        master_id=master_id
+    )
+    return [
+        {
+            "id": str(addr.id),
+            "address": addr.address
+        }
+        for addr in addresses
+    ]
+
+
+async def get_address_by_id(
+    address_id: uuid.UUID,
+    session: AsyncSession
+) -> Optional[dict]:
+    """Получение адреса по ID"""
+    address = await AddressModel.get_by_id(
+        session=session,
+        address_id=address_id
+    )
+    if address:
+        return {
+            "id": str(address.id),
+            "master_id": str(address.master_id),
+            "address": address.address
+        }
+    return None
+
+
+async def delete_address(
+    address_id: uuid.UUID,
+    session: AsyncSession
+) -> str:
+    """Удаление адреса"""
+    return await AddressModel.delete(session=session, address_id=address_id)
+
+
+async def update_address(address_id: uuid.UUID, address: str, session: AsyncSession) -> str:
+    return await AddressModel.update(session=session, address_id=address_id, update_data={"address": address})
+
+async def set_week_template_full(master_id: uuid.UUID, templates: List[WeekTemplate], session: AsyncSession) -> str:
+    try:
+
+        for template_data in templates:
+            week_template = WeekTemplateModel(
+                master_id=master_id,
+                weekday=template_data.weekday,
+                start_time=template_data.start_time,
+                end_time=template_data.end_time,
+                address_id=template_data.address_id
+            )
+            session.add(week_template)
+
+        await session.commit()
+        return "success"
+    except Exception as e:
+        await session.rollback()
+        logging.error(f"Ошибка создания шаблона недели: {e}")
+        return f"error: {str(e)}"
+
+async def get_week_template_by_master(master_id: uuid.UUID, session: AsyncSession) -> List[dict]:
+    templates = await WeekTemplateModel.get_by_master_id(session=session, master_id=master_id)
+    response = []
+
+    for t in templates:
+        address = None
+        if t.address_id:
+            addr = await AddressModel.get_by_id(session=session, address_id=t.address_id)
+            address = addr.address if addr else None
+
+        response.append({
+            "id": t.id,
+            "weekday": t.weekday,
+            "start_time": t.start_time,
+            "end_time": t.end_time,
+            "address_id": t.address_id,
+            "address": address
+        })
+
+    return response
+
+async def update_week_template(req: TemplateUpdateRequest, session: AsyncSession):
+    try:
+        # Находим существующий шаблон
+        template = await WeekTemplateModel.get_by_master_and_weekday(
+            session=session,
+            master_id=req.master_id,
+            weekday=req.weekday
+        )
+        if not template:
+            return "template not found"
+
+        update_data = req.model_dump(exclude_none=True)
+
+        if not update_data:
+            return "no data to update"
+
+        return await WeekTemplateModel.update(
+            session=session,
+            template_id=template.id,
+            update_data=update_data
+        )
+
+    except Exception as e:
+        logging.error(f"Ошибка обновления шаблона недели: {e}")
+        return f"error: {str(e)}"
+
+async def delete_day(id: uuid.UUID, weekday: int, session: AsyncSession):
+    return await WeekTemplateModel.delete_by_master_id_weekday(session=session, master_id=id, weekday=weekday)
