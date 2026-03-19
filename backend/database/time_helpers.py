@@ -1,4 +1,10 @@
-from datetime import time, timedelta, datetime
+import uuid
+from datetime import time, timedelta, datetime, date
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database import AppointmentModel, PriceModel
+
 
 def _int_minutes_to_time(minutes: int) -> time:
     """Перевод int минут в класс time"""
@@ -35,3 +41,34 @@ def _get_weekday_caps(date_obj=None):
     if date_obj is None:
         date_obj = datetime.now()
     return date_obj.strftime('%A').upper()
+
+
+async def _cancel_conflicting_appointments_for_date(
+        session: AsyncSession,
+        master_id: uuid.UUID,
+        date: date,
+        new_start: time,
+        new_end: time):
+    appointments = await AppointmentModel.get_by_master_and_date(
+        session=session, master_id=master_id, app_date=date
+    )
+    start_del = _time_to_timedelta(new_start)
+    end_del = _time_to_timedelta(new_end)
+
+    start_int = _timedelta_to_int_minutes(start_del)
+    end_int = _timedelta_to_int_minutes(end_del)
+
+    for apt in appointments:
+        app_time = _time_to_timedelta(apt.time)
+        app_start = _timedelta_to_int_minutes(app_time)
+
+        price = await PriceModel.get_by_id(session=session, price_id=apt.price_id)
+        if not price:
+            continue
+
+        app_end = app_start + price.approximate_time
+
+        # Конфликт: встреча выходит за новые границы
+        if app_start < start_int or app_end > end_int:
+            await AppointmentModel.delete(session=session, appointment_id=apt.id)
+    return "success"

@@ -11,11 +11,11 @@ from backend.database import AppointmentModel, MasterModel, UserModel, \
     WorkingDayModel, AddressModel, Week
 
 from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
-    PriceCreateRequest, PriceUpdateRequest, WeekTemplate, TemplateUpdateRequest
+    PriceCreateRequest, PriceUpdateRequest, WeekTemplate, TemplateUpdateRequest, WorkingDayUpdateRequest
 from backend.database.responses import AppointmentResponse
 
 from backend.database.time_helpers import _get_weekday_caps, _time_to_timedelta, _timedelta_to_int_minutes, \
-    _get_week_dates, _timedelta_to_time
+    _get_week_dates, _timedelta_to_time, _cancel_conflicting_appointments_for_date
 from datetime import timedelta, date, time, datetime
 
 
@@ -653,7 +653,14 @@ async def update_week_template(req: TemplateUpdateRequest, session: AsyncSession
             weekday=req.weekday
         )
         if not template:
-            return "template not found"
+            await WeekTemplateModel.create(session=session, data={
+                "master_id": req.master_id,
+                "weekday": req.weekday,
+                "start_time": req.start_time,
+                "end_time": req.end_time,
+                "address_id": req.address_id
+            })
+            return "success"
 
         update_data = req.model_dump(exclude_none=True)
 
@@ -672,3 +679,40 @@ async def update_week_template(req: TemplateUpdateRequest, session: AsyncSession
 
 async def delete_day(id: uuid.UUID, weekday: int, session: AsyncSession):
     return await WeekTemplateModel.delete_by_master_id_weekday(session=session, master_id=id, weekday=weekday)
+
+
+async def update_working_day(
+        request: WorkingDayUpdateRequest,
+        session: AsyncSession
+):
+    """
+    Обновление конкретного рабочего дня (форс-мажор).
+    Отменяет записи, которые не вписываются в новое время.
+    """
+    try:
+        working_day = await WorkingDayModel.get_by_master_and_date(
+            session=session, master_id=request.master_id, day_date=request.date
+        )
+        if not working_day:
+            await WorkingDayModel.create(data = request.model_dump(), session=session)
+            return "success"
+
+        cancelled = await _cancel_conflicting_appointments_for_date(
+            session=session,
+            master_id=request.master_id,
+            date=request.day_date,
+            new_start=request.start_time,
+            new_end=request.end_time
+        )
+
+        await WorkingDayModel.update(
+            session=session,
+            wd_id=working_day.id,
+            update_data=request.model_dump()
+        )
+        return "success", cancelled
+
+    except Exception as e:
+        await session.rollback()
+        logging.error(f"Ошибка обновления рабочего дня: {e}")
+        return f"error: {str(e)}", []

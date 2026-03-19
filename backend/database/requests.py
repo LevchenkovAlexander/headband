@@ -145,5 +145,15 @@ class TemplateUpdateRequest(BaseModel):
     end_time: Optional[time] = None
     address_id: Optional[uuid.UUID] = None
 
+class WorkingDayUpdateRequest(BaseModel):
+    master_id: uuid.UUID
+    day_date: date
+    start_time: time
+    end_time: time
+    address_id: uuid.UUID
+
+class CategoryCreateRequest(BaseModel):
+    name: str
+
 
 

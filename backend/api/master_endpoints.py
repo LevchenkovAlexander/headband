@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import db_functions, get_db_session
 from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
-    TemplateCreateRequest, TemplateUpdateRequest
+    TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
     WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse
 
@@ -255,7 +255,7 @@ async def get_week_template(
 async def update_week_template(
     request: TemplateUpdateRequest,
     session: AsyncSession = Depends(get_db_session)):
-    """Обновление конкретного дня"""
+    """Обновление конкретного дня в шаблоне"""
     status = await db_functions.update_week_template(req=request, session=session)
     return {"status": status}
 
@@ -267,3 +267,13 @@ async def delete_day_week_template(
     """Удаление дня (добавление выходного)"""
     status = await db_functions.delete_day(id=master_id, weekday=weekday, session=session)
     return {"status": status}
+
+@router.patch("/working_day/update", response_model=StatusResponse)
+async def update_working_day(
+        request: WorkingDayUpdateRequest,
+        session: AsyncSession = Depends(get_db_session)):
+    """Обновление конкретной даты"""
+    status = await db_functions.update_working_day(request=request, session=session)
+    return {"status": status}
+
+

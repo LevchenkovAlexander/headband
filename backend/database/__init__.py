@@ -168,8 +168,6 @@ class MasterModel(Base):
     chat_id: Mapped[int] = mapped_column(BigInteger)
     username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    working_day_start: Mapped[time]
-    working_day_end: Mapped[time]
 
     # Relationships
     appointments: Mapped[List["AppointmentModel"]] = relationship(
@@ -250,7 +248,7 @@ class MasterCategoryModel(Base):
     __tablename__ = "master_categories"
 
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"), primary_key=True)
-    category_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
+    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
 
     # Relationships
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="master_categories")
@@ -321,6 +319,11 @@ class WorkingDayModel(Base):
         result = await session.execute(query)
         return result.scalars().all()
 
+    @classmethod
+    async def update(cls, session: AsyncSession, wd_id: uuid.UUID, update_data: dict):
+        query = update(cls).where(cls.id == wd_id).values(**update_data)
+        await session.execute(query)
+        return "success"
 
 
 class WeekTemplateModel(Base):
@@ -373,8 +376,7 @@ class MasterAbsenceModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
-    start_date: Mapped[date] = mapped_column(Date)
-    end_date: Mapped[date] = mapped_column(Date)
+    date: Mapped[date]
     reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="master_absences")
