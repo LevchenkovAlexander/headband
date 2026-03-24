@@ -24,23 +24,14 @@ class MasterUpdateRequest(BaseModel):
     id: uuid.UUID
     chat_id: int
     full_name: Optional[str] = None
-    working_day_start: Optional[time] = None
-    working_day_end: Optional[time] = None
-    day_off: Optional[str] = None
-    categories: Optional[str] = None
 
 class MasterCreateRequest(BaseModel):
     chat_id: int
-    organization_id: uuid.UUID
     username: Optional[str] = "no info"
     full_name: Optional[str] = "no info"
-    working_day_start: Optional[time]
-    working_day_end: Optional[time]
-    day_off: Optional[str]
 
 class UserCreateRequest(BaseModel):
     chat_id: int
-    organization_id: uuid.UUID
     username: Optional[str] = None
 
 class OrganizationCreateRequest(BaseModel):
@@ -154,6 +145,12 @@ class WorkingDayUpdateRequest(BaseModel):
 
 class CategoryCreateRequest(BaseModel):
     name: str
+
+class AbsenceCreateRequest(BaseModel):
+    master_id: uuid.UUID
+    start_date: date
+    end_date: date
+    reason: Optional[str] = None
 
 
 

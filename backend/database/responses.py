@@ -190,3 +190,9 @@ class AddressBaseResponse(BaseModel):
 class AddressListResponse(BaseModel):
     status: str
     addresses: List[AddressBaseResponse]
+
+class AbsenceCreateResponse(BaseModel):
+    status: str
+    absence_id: uuid.UUID
+    cancelled_appointments: List[str] = Field(default_factory=list)
+

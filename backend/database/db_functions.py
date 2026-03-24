@@ -72,8 +72,7 @@ async def get_possible_start_time(
     if is_absent:
         return None, "master is absent"
 
-    # Проверяем день недели через week_template
-    weekday = _get_weekday_caps(app_date).value  # 1-7
+    weekday = app_date.isoweekday()
 
     week_template = await WeekTemplateModel.get_by_master_and_weekday(
         session=session,
@@ -113,12 +112,6 @@ async def get_possible_start_time(
     day_start = working_day.start_time  # в минутах
     day_end = working_day.end_time  # в минутах
 
-    # Получаем длительность услуги
-    price = await PriceModel.get_by_id(session=session, price_id=price_id)
-    if not price:
-        return None, "price not found"
-
-    appointment_duration = price.approximate_time  # в минутах
 
     # Собираем занятые интервалы
     end_times = [day_start]
@@ -127,8 +120,12 @@ async def get_possible_start_time(
     for appointment in appointments:
         app_time = _time_to_timedelta(appointment.time)
         app_minutes = _timedelta_to_int_minutes(app_time)
+        price = await PriceModel.get_by_id(session, appointment.price_id)
+        if not price:
+            continue
+        duration = price.approximate_time
         start_times.append(app_minutes)
-        end_times.append(app_minutes + appointment_duration)
+        end_times.append(app_minutes + duration)
 
     start_times.append(day_end)
 
@@ -307,19 +304,12 @@ async def update_master(update_data, session: AsyncSession) -> str:
 async def create_master(
         user: User,
         chat: Chat,
-        session: AsyncSession,
-        working_day_start: time = None,
-        working_day_end: time = None
+        session: AsyncSession
 ) -> str:
-    """Создание мастера"""
     master_data = MasterCreateRequest(
         chat_id=chat.id,
         username=user.username,
-        full_name=user.full_name if hasattr(user, 'full_name') else None,
-        working_day_start=_timedelta_to_int_minutes(
-            _time_to_timedelta(working_day_start)) if working_day_start else 540,  # 9:00
-        working_day_end=_timedelta_to_int_minutes(_time_to_timedelta(working_day_end)) if working_day_end else 1080
-        # 18:00
+        full_name=user.full_name if hasattr(user, 'full_name') else None
     )
 
     master_id = await MasterModel.create(session=session, data=master_data.model_dump())
@@ -604,24 +594,18 @@ async def update_address(address_id: uuid.UUID, address: str, session: AsyncSess
     return await AddressModel.update(session=session, address_id=address_id, update_data={"address": address})
 
 async def set_week_template_full(master_id: uuid.UUID, templates: List[WeekTemplate], session: AsyncSession) -> str:
-    try:
+    for template_data in templates:
+        week_template = WeekTemplateModel(
+            master_id=master_id,
+            weekday=template_data.weekday,
+            start_time=template_data.start_time,
+            end_time=template_data.end_time,
+            address_id=template_data.address_id
+        )
+        session.add(week_template)
 
-        for template_data in templates:
-            week_template = WeekTemplateModel(
-                master_id=master_id,
-                weekday=template_data.weekday,
-                start_time=template_data.start_time,
-                end_time=template_data.end_time,
-                address_id=template_data.address_id
-            )
-            session.add(week_template)
+    return "success"
 
-        await session.commit()
-        return "success"
-    except Exception as e:
-        await session.rollback()
-        logging.error(f"Ошибка создания шаблона недели: {e}")
-        return f"error: {str(e)}"
 
 async def get_week_template_by_master(master_id: uuid.UUID, session: AsyncSession) -> List[dict]:
     templates = await WeekTemplateModel.get_by_master_id(session=session, master_id=master_id)
@@ -716,3 +700,65 @@ async def update_working_day(
         await session.rollback()
         logging.error(f"Ошибка обновления рабочего дня: {e}")
         return f"error: {str(e)}", []
+
+async def create_absence(
+        master_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+        reason: Optional[str],
+        session: AsyncSession
+) -> Tuple[str, uuid.UUID, List[str]]:
+    """
+    Создание периода отсутствия с отменой всех записей в этот период.
+
+    Returns:
+        Tuple[str, uuid.UUID, List[str]]: (status, absence_id, cancelled_appointment_ids)
+    """
+    try:
+        cancelled = await _cancel_appointments_in_date_range(
+            session=session,
+            master_id=master_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        absence_id = await MasterAbsenceModel.create(
+            session=session,
+            data={
+                "master_id": master_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "reason": reason
+            }
+        )
+
+        return "success", absence_id, cancelled
+
+    except Exception as e:
+        await session.rollback()
+        logging.error(f"Ошибка создания отсутствия: {e}")
+        return f"error: {str(e)}", uuid.RFC_4122, []
+
+
+async def _cancel_appointments_in_date_range(
+        session: AsyncSession,
+        master_id: uuid.UUID,
+        start_date: date,
+        end_date: date
+) -> List[str]:
+    """Отменяет все записи мастера в диапазоне дат"""
+    cancelled = []
+
+    appointments = await AppointmentModel.get_by_date_range(session=session, master_id=master_id, start_date=start_date, end_date=end_date)
+
+    for apt in appointments:
+        await AppointmentModel.delete(session=session, appointment_id=apt.id)
+        cancelled.append(str(apt.id))
+
+    return cancelled
+
+async def delete_absence(
+    absence_id: uuid.UUID,
+    session: AsyncSession
+) -> str:
+    """Удаление периода отсутствия (записи НЕ восстанавливаются)"""
+    return await MasterAbsenceModel.delete(session=session, absence_id=absence_id)

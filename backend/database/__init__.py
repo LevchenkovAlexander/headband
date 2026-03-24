@@ -376,7 +376,8 @@ class MasterAbsenceModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
-    date: Mapped[date]
+    start_date: Mapped[date]
+    end_date: Mapped[date]
     reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="master_absences")
@@ -393,6 +394,14 @@ class MasterAbsenceModel(Base):
         query = select(cls).where(cls.master_id == master_id)
         result = await session.execute(query)
         return result.scalars().all()
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, absence_id: uuid.UUID) -> str:
+        obj = await session.get(cls, absence_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "absence not found"
 
     @classmethod
     async def is_absent(cls, session: AsyncSession, master_id: uuid.UUID, check_date: date):
@@ -570,6 +579,11 @@ class AppointmentModel(Base):
             return "success"
         return "no such appointment"
 
+    @classmethod
+    async def get_by_date_range(cls, session: AsyncSession, master_id: uuid.UUID, start_date: date, end_date: date) -> List["AppointmentModel"]:
+        query = select(cls).where(and_(cls.master_id == master_id, cls.date >= start_date, cls.date <= end_date))
+        result = await session.execute(query)
+        return list(result.scalars().all())
 
 class GuidesModel(Base):
     __tablename__ = "guides"

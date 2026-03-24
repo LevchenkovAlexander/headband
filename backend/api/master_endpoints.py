@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import db_functions, get_db_session
 from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
-    TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest
+    TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest, AbsenceCreateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
     WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse
 
@@ -42,32 +42,6 @@ async def get_week_timetable(
         "week_appointments": week_appointments
     }
 
-
-@router.get("/appointments/today/", response_model=AppointmentListResponse)
-async def get_today_appointments(
-        master_id: uuid.UUID,
-        session: AsyncSession = Depends(get_db_session)
-):
-    """Получение записей мастера на сегодня"""
-    today = date.today()
-    appointments, count, status, addresses, names = await db_functions.get_appointments_by_date(
-        master_id=master_id,
-        app_date=today,
-        session=session
-    )
-
-    a = []
-    for i, appointment in enumerate(appointments):
-        aresponse = AppointmentResponse.model_validate(appointment).model_dump()
-        aresponse["address"] = addresses[i] if i < len(addresses) else None
-        aresponse["service_name"] = names[i] if i < len(names) else None
-        a.append(aresponse)
-
-    return {
-        "status": status,
-        "count": count,
-        "appointments": a
-    }
 
 
 @router.get("/appointments/", response_model=AppointmentListResponse)
@@ -296,3 +270,72 @@ async def upload_file(file: UploadFile = File(...)):
 
     return {"filename": safe_filename, "path": file_path}
 
+
+@router.post("/absences", response_model=AbsenceCreateResponse)
+async def create_absence_endpoint(
+        request: AbsenceCreateRequest,
+        session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Добавить период отсутствия мастера.
+    Все записи в этот период будут автоматически отменены.
+    """
+    if request.start_date > request.end_date:
+        raise HTTPException(status_code=400, detail="start_date must be <= end_date")
+
+    if request.start_date < date.today():
+        raise HTTPException(status_code=400, detail="start_date cannot be in the past")
+
+    status, absence_id, cancelled = await db_functions.create_absence(
+        master_id=request.master_id,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        reason=request.reason,
+        session=session
+    )
+
+    if status != "success":
+        raise HTTPException(status_code=400, detail=status)
+
+    return {
+        "status": status,
+        "absence_id": absence_id,
+        "cancelled_appointments": cancelled
+    }
+
+
+@router.get("/absences", response_model=AbsenceListResponse)
+async def get_absences_endpoint(
+        master_id: uuid.UUID,
+        session: AsyncSession = Depends(get_db_session)
+):
+    """Получить список периодов отсутствия мастера"""
+    absences = await db_functions.get_absences_by_master(
+        master_id=master_id,
+        session=session
+    )
+
+    return {
+        "status": "success",
+        "absences": absences
+    }
+
+
+@router.delete("/absences/{absence_id}", response_model=StatusResponse)
+async def delete_absence_endpoint(
+        absence_id: uuid.UUID,
+        session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Удалить период отсутствия.
+    Записи, которые были отменены, НЕ восстанавливаются.
+    """
+    status = await db_functions.delete_absence(
+        absence_id=absence_id,
+        session=session
+    )
+
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+
+    return {"status": status}
