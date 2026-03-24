@@ -1,8 +1,10 @@
+import os
 import uuid
 from datetime import date, datetime
 from typing import List
 
-from fastapi import Depends, APIRouter, HTTPException
+import aiofiles
+from fastapi import Depends, APIRouter, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import db_functions, get_db_session
@@ -10,6 +12,9 @@ from backend.database.requests import MasterUpdateRequest, AddressCreateRequest,
     TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
     WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse
+
+UPLOAD_DIR = "temps"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 router = APIRouter(
     prefix="/masters",
@@ -276,4 +281,18 @@ async def update_working_day(
     status = await db_functions.update_working_day(request=request, session=session)
     return {"status": status}
 
+@router.post("/upload_price_list")
+async def upload_file(file: UploadFile = File(...)):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(400, detail="Invalid file type")
+
+    file_extension = os.path.splitext(file.filename)[1]
+    safe_filename = f"image_{uuid.uuid4().hex}{file_extension}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+
+    async with aiofiles.open(file_path, 'wb') as f:
+        while chunk := await file.read(1024 * 1024):  # читаем по 1 МБ
+            await f.write(chunk)
+
+    return {"filename": safe_filename, "path": file_path}
 
