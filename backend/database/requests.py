@@ -152,5 +152,27 @@ class AbsenceCreateRequest(BaseModel):
     end_date: date
     reason: Optional[str] = None
 
+class AbsenceUpdateRequest(BaseModel):
+    absence_id: uuid.UUID
+    master_id: uuid.UUID
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    reason: Optional[str] = None
+
+class GuideCreateRequest(BaseModel):
+    name: str
+    category: str
+    steps: str
+    author: uuid.UUID
+
+class GuideUpdateRequest(BaseModel):
+    id: uuid.UUID
+    author: uuid.UUID
+    name: Optional[str] = None
+    category: Optional[str] = None
+    steps: Optional[str] = None
+
+
+
 
 

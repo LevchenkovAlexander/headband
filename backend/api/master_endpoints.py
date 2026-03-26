@@ -9,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import db_functions, get_db_session
 from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
-    TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest, AbsenceCreateRequest
+    TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest, AbsenceCreateRequest, AbsenceUpdateRequest, \
+    GuideCreateRequest, GuideUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
-    WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse
+    WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse, \
+    AbsenceCreateResponse, AbsenceListResponse
 
 UPLOAD_DIR = "temps"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -112,6 +114,32 @@ async def get_steps(
         "status": status,
         "steps": steps
     }
+
+@router.post("/guides", response_model=IDResponse)
+async def create_guide(
+    request: GuideCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    try:
+        guide_id = await db_functions.create_guide(
+            session=session,
+            request=request
+        )
+        return {"status": "success", "id": guide_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.patch("/guides", response_model=StatusResponse)
+async def update_guide(
+    request: GuideUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    status = db_functions.update_guide(session=session,
+        update_data=request)
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+    return {"status": status}
+
 
 @router.get("/categories", response_model=dict)
 async def get_master_categories(
@@ -272,7 +300,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 
 @router.post("/absences", response_model=AbsenceCreateResponse)
-async def create_absence_endpoint(
+async def create_absence(
         request: AbsenceCreateRequest,
         session: AsyncSession = Depends(get_db_session)
 ):
@@ -305,24 +333,24 @@ async def create_absence_endpoint(
 
 
 @router.get("/absences", response_model=AbsenceListResponse)
-async def get_absences_endpoint(
+async def get_absences(
         master_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
     """Получить список периодов отсутствия мастера"""
-    absences = await db_functions.get_absences_by_master(
+    absences, status = await db_functions.get_absences_by_master(
         master_id=master_id,
         session=session
     )
 
     return {
-        "status": "success",
+        "status": status,
         "absences": absences
     }
 
 
 @router.delete("/absences/{absence_id}", response_model=StatusResponse)
-async def delete_absence_endpoint(
+async def delete_absence(
         absence_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
@@ -332,6 +360,24 @@ async def delete_absence_endpoint(
     """
     status = await db_functions.delete_absence(
         absence_id=absence_id,
+        session=session
+    )
+
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+
+    return {"status": status}
+
+@router.patch("/absence", response_model=StatusResponse)
+async def update_absence(absence: AbsenceUpdateRequest,
+                        session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Изменить период отсутствия.
+    Записи, которые были отменены, НЕ восстанавливаются.
+    """
+    status = await db_functions.update_absence(
+        update_data=absence,
         session=session
     )
 

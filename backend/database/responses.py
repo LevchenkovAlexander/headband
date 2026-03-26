@@ -196,3 +196,11 @@ class AbsenceCreateResponse(BaseModel):
     absence_id: uuid.UUID
     cancelled_appointments: List[str] = Field(default_factory=list)
 
+class AbsenceResp(BaseModel):
+    id: uuid.UUID
+    start_date: date
+    end_date: date
+    reason: str
+
+class AbsenceListResponse(StatusResponse):
+    absences: Optional[List[AbsenceResp]] = List[dict]

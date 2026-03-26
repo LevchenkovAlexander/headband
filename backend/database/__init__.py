@@ -80,6 +80,10 @@ class Week(Enum):
     SATURDAY = 6
     SUNDAY = 7
 
+class GuideStatus(Enum):
+    CONFIRMED = 1
+    PENDING = 2
+    DENIED = 3
 
 class AdminModel(Base):
     __tablename__ = "admins"
@@ -413,6 +417,12 @@ class MasterAbsenceModel(Base):
         result = await session.execute(query)
         return result.scalars().first() is not None
 
+    @classmethod
+    async def update(cls, session: AsyncSession, id: uuid.UUID, master_id: uuid.UUID, update_data: dict) -> str:
+        query = update(cls).where(cls.id == id, cls.master_id == master_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
 class AddressModel(Base):
     __tablename__ = "addresses"
 
@@ -593,16 +603,17 @@ class GuidesModel(Base):
     category: Mapped[str]
     steps: Mapped[str]
     author: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    guide_status: Mapped[int]
 
     @classmethod
     async def get_all(cls, session: AsyncSession):
-        query = select(cls)
+        query = select(cls).where(cls.guide_status == GuideStatus.CONFIRMED).order_by(cls.name)
         result = await session.execute(query)
         return result.scalars().all()
 
     @classmethod
     async def get_by_categories(cls, categories: List[str], session: AsyncSession):
-        query = select(cls).where(cls.category.in_(categories))
+        query = select(cls).where(cls.category.in_(categories), cls.guide_status == GuideStatus.CONFIRMED).order_by(cls.name)
         result = await session.execute(query)
         return result.scalars().all()
 
@@ -614,7 +625,15 @@ class GuidesModel(Base):
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
+        data["guide_status"] = GuideStatus.PENDING
         guide = cls(**data)
         session.add(guide)
         await session.flush()
         return guide.id
+
+    @classmethod
+    async def update(cls, session: AsyncSession, id: uuid.UUID, author: uuid.UUID, update_data: dict):
+        update_data["guide_status"] = GuideStatus.PENDING
+        query = update(cls).where(cls.id ==id, cls.author == author).values(**update_data)
+        await session.execute(query)
+        return "success"

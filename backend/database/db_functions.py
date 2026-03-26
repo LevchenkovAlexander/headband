@@ -3,7 +3,7 @@ import uuid
 from typing import Tuple, Optional, List
 
 from aiogram.types import User, Chat
-from sqlalchemy import update, delete, select
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import AppointmentModel, MasterModel, UserModel, \
@@ -22,7 +22,6 @@ from datetime import timedelta, date, time, datetime
 # ==================== GUIDES ====================
 async def get_guides(master_id: uuid.UUID, session: AsyncSession) -> Tuple[str, List[dict], List[dict]]:
     """Получение гайдов по категориям мастера"""
-    # Получаем категории мастера через junction table
     category_ids = await MasterCategoryModel.get_categories_by_master(id = master_id, session = session)
 
     g_fitable = await GuidesModel.get_by_categories(categories=category_ids, session=session)
@@ -493,21 +492,25 @@ async def add_absence(
 async def get_absences_by_master(
         master_id: uuid.UUID,
         session: AsyncSession
-) -> List[dict]:
+):
     """Получение периодов отсутствия мастера"""
     absences = await MasterAbsenceModel.get_by_master_id(
         session=session,
         master_id=master_id
     )
-    return [
-        {
-            "id": str(a.id),
-            "start_date": a.start_date,
-            "end_date": a.end_date,
-            "reason": a.reason
-        }
-        for a in absences
-    ]
+    status = "success"
+    res = []
+    if len(absences) == 0:
+       status = "no absences"
+       res = [{"res": "no periods"}]
+    else:
+       res = [{"id": a.id,
+                "start_date": a.start_date,
+                "end_date": a.end_date,
+                "reason": a.reason
+                } for a in absences]
+    return res, status
+
 
 # ==================== CATEGORIES ====================
 async def get_all_categories(session: AsyncSession) -> List[dict]:
@@ -762,3 +765,32 @@ async def delete_absence(
 ) -> str:
     """Удаление периода отсутствия (записи НЕ восстанавливаются)"""
     return await MasterAbsenceModel.delete(session=session, absence_id=absence_id)
+
+async def update_absence(update_data, session: AsyncSession) -> str:
+    """Обновление данных мастера"""
+    data_to_upd = update_data.model_dump(exclude_unset=True)
+    return await MasterAbsenceModel.update(
+        session=session,
+        id=update_data.absence_id,
+        master_id=update_data.master_id,
+        update_data=data_to_upd
+
+    )
+
+async def update_guide(update_data, session: AsyncSession) -> str:
+    """Обновление данных мастера"""
+    data_to_upd = update_data.model_dump(exclude_unset=True)
+    return await GuidesModel.update(
+        session=session,
+        id=update_data.id,
+        author=update_data.author,
+        update_data=data_to_upd
+
+    )
+
+async def create_guide(request, session: AsyncSession):
+    guide_id = await GuidesModel.create(
+        session=session,
+        data=request.model_dump()
+    )
+    return {"status": "success", "id": guide_id}
