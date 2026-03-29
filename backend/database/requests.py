@@ -22,8 +22,9 @@ class AppointmentCreateRequest(BaseModel):
 
 class MasterUpdateRequest(BaseModel):
     id: uuid.UUID
-    chat_id: int
     full_name: Optional[str] = None
+    telephone: Optional[str] = None
+    description: Optional[str] = None
 
 class MasterCreateRequest(BaseModel):
     chat_id: int

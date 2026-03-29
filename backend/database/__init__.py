@@ -4,6 +4,7 @@ import uuid
 from enum import Enum
 from typing import List, Optional, AsyncGenerator
 
+from dotenv import load_dotenv
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text, delete, and_
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -12,7 +13,7 @@ from datetime import time, date
 from sqlalchemy import inspect
 
 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-
+load_dotenv()
 db_address = os.getenv('DB_ADDRESS')
 engine = create_async_engine(db_address)
 
@@ -164,14 +165,26 @@ class CategoryModel(Base):
         await session.flush()
         return "success"
 
+    @classmethod
+    async def get_by_name(cls, session: AsyncSession, name: str):
+        query = select(cls).where(cls.name == name)
+        result = await session.execute(query)
+        return result.scalars().first()
+
 
 class MasterModel(Base):
     __tablename__ = "masters"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    chat_id: Mapped[int] = mapped_column(BigInteger)
-    username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    chat_id_tg: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    username_tg: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    chat_id_max: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    username_max: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    telephone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    master_link_id: Mapped[uuid.UUID]
+    user_link_id: Mapped[uuid.UUID]
 
     # Relationships
     appointments: Mapped[List["AppointmentModel"]] = relationship(

@@ -13,7 +13,8 @@ from backend.database.requests import MasterUpdateRequest, AddressCreateRequest,
     GuideCreateRequest, GuideUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
     WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse, \
-    AbsenceCreateResponse, AbsenceListResponse
+    AbsenceCreateResponse, AbsenceListResponse, PriceListResponseFile
+from backend.model import pricelist
 
 UPLOAD_DIR = "temps"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -283,7 +284,7 @@ async def update_working_day(
     status = await db_functions.update_working_day(request=request, session=session)
     return {"status": status}
 
-@router.post("/upload_price_list")
+@router.post("/upload_price_file")
 async def upload_file(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, detail="Invalid file type")
@@ -296,7 +297,12 @@ async def upload_file(file: UploadFile = File(...)):
         while chunk := await file.read(1024 * 1024):  # читаем по 1 МБ
             await f.write(chunk)
 
-    return {"filename": safe_filename, "path": file_path}
+    data = await pricelist.get_price_list(file_path)
+    #res = await db_functions.create_pricelist(data=data, master_id=master_id, session=session)
+    return {"status": "success",
+            "prices": data}
+
+@router.post("/create_price")
 
 
 @router.post("/absences", response_model=AbsenceCreateResponse)

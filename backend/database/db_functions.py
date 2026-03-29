@@ -181,7 +181,7 @@ async def get_appointments_by_date(
     return [], 0, "no appointments today", [], []
 
 async def get_appointments_by_user(
-        chat_id: int,
+        id: uuid.UUID,
         session: AsyncSession
 ) -> List[dict]:
     """Получение записей пользователя"""
@@ -794,3 +794,14 @@ async def create_guide(request, session: AsyncSession):
         data=request.model_dump()
     )
     return {"status": "success", "id": guide_id}
+
+async def create_pricelist(data: List, master_id: uuid.UUID, session: AsyncSession):
+    for d in data:
+        p = {}
+        p["name"] = d["name"]
+        p["price"] = d["price"]
+        p["approximate_time"] = d["approximate_time"]
+        p["category_id"] = await CategoryModel.get_by_name(session=session, name=d["category"])
+        p["master_id"] = master_id
+        d["id"].append(await PriceModel.create(session=session, data=p))
+    return data

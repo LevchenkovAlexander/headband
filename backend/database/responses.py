@@ -204,3 +204,7 @@ class AbsenceResp(BaseModel):
 
 class AbsenceListResponse(StatusResponse):
     absences: Optional[List[AbsenceResp]] = List[dict]
+
+class PriceListResponseFile():
+    status: str
+    prices: List[dict]
