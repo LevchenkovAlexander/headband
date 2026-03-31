@@ -229,6 +229,18 @@ class MasterModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+    earnings: Mapped[List["EarningsModel"]] = relationship(
+        "EarningsModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    prepayments: Mapped[List["PrepayModel"]] = relationship(
+        "PrepayModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -550,6 +562,13 @@ class PriceModel(Base):
             return "success"
         return "no such price"
 
+    @classmethod
+    async def get_by_name(cls, session: AsyncSession, master_id: uuid.UUID, name: str):
+        """Получение позиции по названию"""
+        query = select(cls).where(cls.master_id == master_id, cls.name == name)
+        result = await session.execute(query)
+        return result.scalars().first()
+
 
 class AppointmentModel(Base):
     __tablename__ = "appointments"
@@ -650,3 +669,111 @@ class GuidesModel(Base):
         query = update(cls).where(cls.id ==id, cls.author == author).values(**update_data)
         await session.execute(query)
         return "success"
+
+class EarningsModel(Base):
+    __tablename__ = "earnings"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    price: Mapped[int]
+    date: Mapped[date]
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="earnings")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        earning = cls(**data)
+        session.add(earning)
+        await session.flush()
+        return earning.id
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, earning_id: uuid.UUID):
+        query = select(cls).where(cls.id == earning_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        query = select(cls).where(cls.master_id == master_id).order_by(cls.date.desc())
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def get_by_date_range(cls, session: AsyncSession, master_id: uuid.UUID, start_date: date, end_date: date):
+        query = select(cls).where(
+            and_(cls.master_id == master_id, cls.date >= start_date, cls.date <= end_date)
+        )
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, earning_id: uuid.UUID, update_data: dict):
+        query = update(cls).where(cls.id == earning_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, earning_id: uuid.UUID):
+        obj = await session.get(cls, earning_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such earning"
+
+
+class PrepayModel(Base):
+    __tablename__ = "prepayments"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    percent: Mapped[int]
+    start_date: Mapped[date]
+    end_date: Mapped[date]
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="prepayments")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        prepay = cls(**data)
+        session.add(prepay)
+        await session.flush()
+        return prepay.id
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, prepay_id: uuid.UUID):
+        query = select(cls).where(cls.id == prepay_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        query = select(cls).where(cls.master_id == master_id).order_by(cls.start_date.desc())
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def get_active_by_date(cls, session: AsyncSession, master_id: uuid.UUID, check_date: date):
+        query = select(cls).where(
+            and_(
+                cls.master_id == master_id,
+                cls.start_date <= check_date,
+                cls.end_date >= check_date
+            )
+        )
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, prepay_id: uuid.UUID, update_data: dict):
+        query = update(cls).where(cls.id == prepay_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, prepay_id: uuid.UUID):
+        obj = await session.get(cls, prepay_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such prepayment"

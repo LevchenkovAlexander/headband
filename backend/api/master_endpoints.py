@@ -10,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import db_functions, get_db_session
 from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
     TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest, AbsenceCreateRequest, AbsenceUpdateRequest, \
-    GuideCreateRequest, GuideUpdateRequest
+    GuideCreateRequest, GuideUpdateRequest, EarningDateRangeRequest, EarningCreateRequest, EarningUpdateRequest, \
+    PrepayCreateRequest, PrepayUpdateRequest, PriceCreateRequest, PriceUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
     WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse, \
-    AbsenceCreateResponse, AbsenceListResponse, PriceListResponseFile
+    AbsenceCreateResponse, AbsenceListResponse, PriceListResponseFile, EarningListResponse, PrepayListResponse, \
+    PriceListResponse
 from backend.model import pricelist
 
 UPLOAD_DIR = "temps"
@@ -284,8 +286,10 @@ async def update_working_day(
     status = await db_functions.update_working_day(request=request, session=session)
     return {"status": status}
 
-@router.post("/upload_price_file")
-async def upload_file(file: UploadFile = File(...)):
+@router.post("/upload_price_file/{master_id}")
+async def upload_file(master_id: uuid.UUID,
+        file: UploadFile = File(...),
+        session: AsyncSession = Depends(get_db_session)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, detail="Invalid file type")
 
@@ -298,11 +302,107 @@ async def upload_file(file: UploadFile = File(...)):
             await f.write(chunk)
 
     data = await pricelist.get_price_list(file_path)
-    #res = await db_functions.create_pricelist(data=data, master_id=master_id, session=session)
+    res = await db_functions.create_pricelist(data=data, master_id=master_id, session=session)
     return {"status": "success",
-            "prices": data}
+            "prices": res}
 
-@router.post("/create_price")
+@router.post("/prices", response_model=IDResponse)
+async def create_price(
+    request: PriceCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Создание позиции прайса"""
+    status, price_id = await db_functions.create_price(
+        master_id=request.master_id,
+        category_id=request.category_id,
+        name=request.name,
+        price=request.price,
+        approximate_time=request.approximate_time,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=400, detail=status)
+    return {"status": status, "id": price_id}
+
+@router.post("/prices/bulk", response_model=dict)
+async def create_prices_bulk(
+    request: PriceBulkCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Массовое создание позиций прайса"""
+    prices_data = [p.model_dump() for p in request.prices]
+    status, created_ids, errors = await db_functions.create_prices_bulk(
+        master_id=request.master_id,
+        prices_data=prices_data,
+        session=session
+    )
+    if status != "success" and status != "success with errors":
+        raise HTTPException(status_code=400, detail=status)
+    return {
+        "status": status,
+        "created_ids": [str(id) for id in created_ids],
+        "errors": errors
+    }
+
+@router.patch("/prices", response_model=StatusResponse)
+async def update_price(
+    request: PriceUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Обновление позиции прайса"""
+    status = await db_functions.update_price(
+        update_data=request,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=400, detail=status)
+    return {"status": status}
+
+@router.delete("/prices/{price_id}", response_model=StatusResponse)
+async def delete_price(
+    price_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Удаление позиции прайса"""
+    status = await db_functions.delete_price(
+        price_id=price_id,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+    return {"status": status}
+
+@router.get("/prices", response_model=PriceListResponse)
+async def get_master_prices(
+    master_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение всех позиций прайса мастера"""
+    prices = await db_functions.get_prices_by_master(
+        master_id=master_id,
+        session=session
+    )
+    return {
+        "status": "success",
+        "prices": prices,
+    }
+
+@router.get("/prices/category", response_model=PriceListResponse)
+async def get_prices_by_category(
+    master_id: uuid.UUID,
+    category_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение позиций прайса по категории"""
+    status, prices = await db_functions.get_prices_by_category(
+        master_id=master_id,
+        category_id=category_id,
+        session=session
+    )
+    return {
+        "status": status,
+        "prices": prices
+    }
 
 
 @router.post("/absences", response_model=AbsenceCreateResponse)
@@ -390,4 +490,144 @@ async def update_absence(absence: AbsenceUpdateRequest,
     if status != "success":
         raise HTTPException(status_code=404, detail=status)
 
+    return {"status": status}
+
+
+@router.get("/earnings", response_model=EarningListResponse)
+async def get_master_earnings(
+    master_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение всех доходов мастера"""
+    status, earnings, total = await db_functions.get_earnings_by_master(
+        master_id=master_id,
+        session=session
+    )
+    return {
+        "status": status,
+        "earnings": earnings,
+        "total": total
+    }
+
+@router.get("/earnings/range", response_model=EarningListResponse)
+async def get_earnings_by_range(
+    request: EarningDateRangeRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение доходов за период"""
+    status, earnings, total = await db_functions.get_earnings_by_date_range(
+        master_id=request.master_id,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        session=session
+    )
+    return {
+        "status": status,
+        "earnings": earnings,
+        "total": total
+    }
+
+@router.post("/earnings", response_model=IDResponse)
+async def create_earning(
+    request: EarningCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Создание записи о доходе"""
+    status, earning_id = await db_functions.create_earning(
+        master_id=request.master_id,
+        price=request.price,
+        date=request.date,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=400, detail=status)
+    return {"status": status, "id": earning_id}
+
+
+@router.patch("/earnings", response_model=StatusResponse)
+async def update_earning(
+    request: EarningUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Обновление записи о доходе"""
+    update_data = request.model_dump(exclude_unset=True)
+    status = await db_functions.update_earning(
+        earning_id=request.id,
+        update_data=update_data,
+        session=session
+    )
+    return {"status": status}
+
+@router.delete("/earnings/{earning_id}", response_model=StatusResponse)
+async def delete_earning(
+    earning_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Удаление записи о доходе"""
+    status = await db_functions.delete_earning(
+        earning_id=earning_id,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+    return {"status": status}
+
+@router.get("/prepayments", response_model=PrepayListResponse)
+async def get_master_prepayments(
+    master_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получение всех периодов предоплаты мастера"""
+    status, prepayments = await db_functions.get_prepayments_by_master(
+        master_id=master_id,
+        session=session
+    )
+    return {
+        "status": status,
+        "prepayments": prepayments
+    }
+
+@router.post("/prepayments", response_model=IDResponse)
+async def create_prepayment(
+    request: PrepayCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Создание периода предоплаты"""
+    status, prepay_id = await db_functions.create_prepayment(
+        master_id=request.master_id,
+        percent=request.percent,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=400, detail=status)
+    return {"status": status, "id": prepay_id}
+
+@router.patch("/prepayments", response_model=StatusResponse)
+async def update_prepayment(
+    request: PrepayUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Обновление периода предоплаты"""
+    update_data = request.model_dump(exclude_unset=True)
+    status = await db_functions.update_prepayment(
+        prepay_id=request.id,
+        update_data=update_data,
+        session=session
+    )
+    return {"status": status}
+
+@router.delete("/prepayments/{prepay_id}", response_model=StatusResponse)
+async def delete_prepayment(
+    prepay_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Удаление периода предоплаты"""
+    status = await db_functions.delete_prepayment(
+        prepay_id=prepay_id,
+        session=session
+    )
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
     return {"status": status}

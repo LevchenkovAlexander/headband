@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import AppointmentModel, MasterModel, UserModel, \
     PriceModel, GuidesModel, CategoryModel, MasterCategoryModel, MasterAbsenceModel, WeekTemplateModel, \
-    WorkingDayModel, AddressModel, Week
+    WorkingDayModel, AddressModel, Week, EarningsModel, PrepayModel
 
 from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     PriceCreateRequest, PriceUpdateRequest, WeekTemplate, TemplateUpdateRequest, WorkingDayUpdateRequest
@@ -363,11 +363,11 @@ async def update_price(
 
 
 async def delete_price(
-    delete_id: uuid.UUID,
+    price_id: uuid.UUID,
     session: AsyncSession
 ) -> str:
     """Удаление позиции прайса"""
-    return await PriceModel.delete(session=session, price_id=delete_id)
+    return await PriceModel.delete(session=session, price_id=price_id)
 
 #TODO сделать диплинки для рефералки
 async def user_master_deeplink(
@@ -534,7 +534,65 @@ async def create_category(
 
 
 async def get_prices_by_master(master_id: uuid.UUID, session: AsyncSession):
-    return await PriceModel.get_by_master_id(session=session, master_id=master_id)
+    prices = await PriceModel.get_by_master_id(session=session, master_id=master_id)
+    resp = [{
+        "id": str(p.id),
+        "name": p.name,
+        "price": p.price,
+        "category": await CategoryModel.get_by_id(session=session, category_id=p.category_id),
+        "approximate_time": p.approximate_time,
+        "master_id": str(p.master_id)
+    } for p in prices]
+    return resp
+
+
+async def create_price(
+        master_id: uuid.UUID,
+        category_id: uuid.UUID,
+        name: str,
+        price: int,
+        approximate_time: time,
+        session: AsyncSession
+) :
+    """Создание позиции прайса"""
+    # Проверка на дубликат названия
+    existing = await PriceModel.get_by_name(
+        session=session,
+        master_id=master_id,
+        name=name
+    )
+    if existing:
+        return "error: price with this name already exists", uuid.UUID(int=0)
+
+    data = {
+        "master_id": master_id,
+        "category_id": category_id,
+        "name": name,
+        "price": price,
+        "approximate_time": approximate_time
+    }
+    price_id = await PriceModel.create(session=session, data=data)
+    return "success", price_id
+
+async def get_prices_by_category(
+    master_id: uuid.UUID,
+    category_id: uuid.UUID,
+    session: AsyncSession
+):
+    prices = await PriceModel.get_by_category(
+        session=session,
+        master_id=master_id,
+        category_id=category_id
+    )
+    resp = [{
+        "id": str(p.id),
+        "name": p.name,
+        "price": p.price,
+        "category": await CategoryModel.get_by_id(session=session, category_id=p.category_id),
+        "approximate_time": p.approximate_time,
+        "master_id": str(p.master_id)
+    } for p in prices]
+    return "success", resp
 
 async def create_address(
     master_id: uuid.UUID,
@@ -805,3 +863,150 @@ async def create_pricelist(data: List, master_id: uuid.UUID, session: AsyncSessi
         p["master_id"] = master_id
         d["id"].append(await PriceModel.create(session=session, data=p))
     return data
+
+async def create_earning(
+        master_id: uuid.UUID,
+        price: int,
+        date: date,
+        session: AsyncSession
+) -> Tuple[str, uuid.UUID]:
+    """Создание записи о доходе"""
+    data = {
+        "master_id": master_id,
+        "price": price,
+        "date": date
+    }
+    earning_id = await EarningsModel.create(session=session, data=data)
+    return "success", earning_id
+
+async def get_earnings_by_master(
+        master_id: uuid.UUID,
+        session: AsyncSession
+) -> Tuple[str, List[dict], int]:
+    """Получение всех доходов мастера"""
+    earnings = await EarningsModel.get_by_master_id(session=session, master_id=master_id)
+    total = sum(e.price for e in earnings)
+    resp = [{
+        "id": str(e.id),
+        "price": e.price,
+        "date": e.date,
+        "master_id": str(e.master_id)
+    } for e in earnings]
+    return "success", resp, total
+
+
+async def get_earnings_by_date_range(
+        master_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+        session: AsyncSession
+) -> Tuple[str, List[dict], int]:
+    """Получение доходов за период"""
+    earnings = await EarningsModel.get_by_date_range(
+        session=session,
+        master_id=master_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+    total = sum(e.price for e in earnings)
+    resp = [{
+        "id": str(e.id),
+        "price": e.price,
+        "date": e.date,
+        "master_id": str(e.master_id)
+    } for e in earnings]
+    return "success", resp, total
+
+
+async def update_earning(
+        earning_id: uuid.UUID,
+        update_data: dict,
+        session: AsyncSession
+) -> str:
+    """Обновление записи о доходе"""
+    return await EarningsModel.update(session=session, earning_id=earning_id, update_data=update_data)
+
+
+async def delete_earning(
+        earning_id: uuid.UUID,
+        session: AsyncSession
+) -> str:
+    """Удаление записи о доходе"""
+    return await EarningsModel.delete(session=session, earning_id=earning_id)
+
+
+async def create_prepayment(
+        master_id: uuid.UUID,
+        percent: int,
+        start_date: date,
+        end_date: date,
+        session: AsyncSession
+) -> Tuple[str, uuid.UUID]:
+    """Создание периода предоплаты"""
+    if start_date > end_date:
+        return "error: start_date > end_date", uuid.UUID(int=0)
+
+    data = {
+        "master_id": master_id,
+        "percent": percent,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+    prepay_id = await PrepayModel.create(session=session, data=data)
+    return "success", prepay_id
+
+
+async def get_prepayments_by_master(
+        master_id: uuid.UUID,
+        session: AsyncSession
+) -> Tuple[str, List[dict]]:
+    """Получение всех периодов предоплаты мастера"""
+    prepayments = await PrepayModel.get_by_master_id(session=session, master_id=master_id)
+    resp = [{
+        "id": str(p.id),
+        "percent": p.percent,
+        "start_date": p.start_date,
+        "end_date": p.end_date,
+        "master_id": str(p.master_id)
+    } for p in prepayments]
+    return "success", resp
+
+
+async def get_active_prepayment(
+        master_id: uuid.UUID,
+        check_date: date,
+        session: AsyncSession
+) -> Tuple[str, Optional[dict]]:
+    """Получение активного периода предоплаты на дату"""
+    prepay = await PrepayModel.get_active_by_date(
+        session=session,
+        master_id=master_id,
+        check_date=check_date
+    )
+    if prepay:
+        resp = {
+            "id": str(prepay.id),
+            "percent": prepay.percent,
+            "start_date": prepay.start_date,
+            "end_date": prepay.end_date,
+            "master_id": str(prepay.master_id)
+        }
+        return "success", resp
+    return "no active prepayment", None
+
+
+async def update_prepayment(
+        prepay_id: uuid.UUID,
+        update_data: dict,
+        session: AsyncSession
+) -> str:
+    """Обновление периода предоплаты"""
+    return await PrepayModel.update(session=session, prepay_id=prepay_id, update_data=update_data)
+
+
+async def delete_prepayment(
+        prepay_id: uuid.UUID,
+        session: AsyncSession
+) -> str:
+    """Удаление периода предоплаты"""
+    return await PrepayModel.delete(session=session, prepay_id=prepay_id)

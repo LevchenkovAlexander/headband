@@ -121,7 +121,7 @@ class PriceBaseResponse(BaseModel):
     id: UUID
     name: str
     price: int
-    category_id: UUID
+    category: str
     approximate_time: int  # минуты
     master_id: UUID
 
@@ -208,3 +208,30 @@ class AbsenceListResponse(StatusResponse):
 class PriceListResponseFile():
     status: str
     prices: List[dict]
+
+class EarningBaseResponse(BaseModel):
+    id: UUID
+    price: int
+    date: date
+    master_id: UUID
+
+class EarningListResponse(BaseModel):
+    status: str
+    earnings: List[EarningBaseResponse]
+    total: int = 0  # общая сумма
+
+class PrepayBaseResponse(BaseModel):
+    id: UUID
+    percent: int
+    start_date: date
+    end_date: date
+    master_id: UUID
+
+class PrepayListResponse(BaseModel):
+    status: str
+    prepayments: List[PrepayBaseResponse]
+
+class PrepayActiveResponse(BaseModel):
+    status: str
+    prepay: Optional[PrepayBaseResponse] = None
+
