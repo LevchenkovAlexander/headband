@@ -26,7 +26,7 @@ function App() {
               <div className="actual__bar actual__bar--transparent"></div>
               <div className="actual__break">Отдых 2 часа 20 минут</div>
             </div>
-            
+
             <div className="actual__event">
               <div className="actual__bar"></div>
               <div className="actual__info">
@@ -47,9 +47,18 @@ function App() {
             <div className="information__underline"></div>
           </div>
           <div className="information__wrapper">
-            <div className="information__guides">Гайды</div>
-            <div className="information__schedule">Расписание</div>
-            <div className="information__profile">Профиль</div>
+            <div className="information__guides">
+              Гайды
+              <img src="./src/assets/main/guids.svg" className="information__svg" />
+            </div>
+            <div className="information__schedule">
+              Расписание
+              <img src="./src/assets/main/schedule.svg" className="information__svg information__svg--right" />
+            </div>
+            <div className="information__profile">
+              Профиль
+              <img src="./src/assets/main/profile.svg" className="information__svg information__svg" />
+            </div>
           </div>
         </div>
       </div>
