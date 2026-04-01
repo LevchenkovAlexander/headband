@@ -11,7 +11,7 @@ from backend.database import db_functions, get_db_session
 from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
     TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest, AbsenceCreateRequest, AbsenceUpdateRequest, \
     GuideCreateRequest, GuideUpdateRequest, EarningDateRangeRequest, EarningCreateRequest, EarningUpdateRequest, \
-    PrepayCreateRequest, PrepayUpdateRequest, PriceCreateRequest, PriceUpdateRequest
+    PrepayCreateRequest, PrepayUpdateRequest, PriceCreateRequest, PriceUpdateRequest, MasterNotificationUpdateRequest
 from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
     WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse, \
     AbsenceCreateResponse, AbsenceListResponse, PriceListResponseFile, EarningListResponse, PrepayListResponse, \
@@ -630,4 +630,48 @@ async def delete_prepayment(
     )
     if status != "success":
         raise HTTPException(status_code=404, detail=status)
+    return {"status": status}
+
+
+@router.get("/notifications", response_model=MasterNotificationGetResponse)
+async def get_master_notifications(
+        master_id: uuid.UUID,
+        session: AsyncSession = Depends(get_db_session)
+):
+    """Получение настроек уведомлений мастера"""
+    status, notification = await db_functions.get_master_notification(
+        master_id=master_id,
+        session=session
+    )
+
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+
+    return {
+        "status": status,
+        "notification": notification
+    }
+
+
+@router.patch("/notifications", response_model=StatusResponse)
+async def update_master_notification(
+        request: MasterNotificationUpdateRequest,
+        session: AsyncSession = Depends(get_db_session)
+):
+    """Обновление настроек уведомлений мастера (можно обновлять отдельные поля)"""
+    update_data = request.model_dump(exclude_unset=True)
+    update_data.pop("master_id", None)
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    status = await db_functions.update_master_notification(
+        master_id=request.master_id,
+        update_data=update_data,
+        session=session
+    )
+
+    if status != "success":
+        raise HTTPException(status_code=404, detail=status)
+
     return {"status": status}

@@ -241,6 +241,13 @@ class MasterModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+    notifications: Mapped["MasterNotificationModel"] = relationship(
+        "MasterNotificationModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False
+    )
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -777,3 +784,43 @@ class PrepayModel(Base):
             await session.delete(obj)
             return "success"
         return "no such prepayment"
+
+
+class MasterNotificationModel(Base):
+    __tablename__ = "master_notifications"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"),
+                                                 unique=True)
+
+    # Уведомления
+    appointment_notification: Mapped[bool] = mapped_column(default=True)  # уведомление о записи
+    appointment_cancel_notification: Mapped[bool] = mapped_column(default=True)  # уведомление об отмене записи
+    appointment_confirm_notification: Mapped[bool] = mapped_column(default=True)  # подтверждение записи
+    guide_approved_notification: Mapped[bool] = mapped_column(default=True)  # уведомление об одобрении гайда
+    subscription_ending_notification: Mapped[bool] = mapped_column(
+        default=True)  # уведомление о заканчивающейся подписке
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="notifications")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, master_id: uuid.UUID) -> uuid.UUID:
+        """Создание настроек уведомлений для мастера"""
+        notification = cls(master_id=master_id)
+        session.add(notification)
+        await session.flush()
+        return notification.id
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        """Получение настроек уведомлений по master_id"""
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, master_id: uuid.UUID, update_data: dict) -> str:
+        """Обновление настроек уведомлений"""
+        query = update(cls).where(cls.master_id == master_id).values(**update_data)
+        await session.execute(query)
+        return "success"

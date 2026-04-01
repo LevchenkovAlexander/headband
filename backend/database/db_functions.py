@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import AppointmentModel, MasterModel, UserModel, \
     PriceModel, GuidesModel, CategoryModel, MasterCategoryModel, MasterAbsenceModel, WeekTemplateModel, \
-    WorkingDayModel, AddressModel, Week, EarningsModel, PrepayModel
+    WorkingDayModel, AddressModel, Week, EarningsModel, PrepayModel, MasterNotificationModel
 
 from backend.database.requests import AppointmentCreateRequest, MasterCreateRequest, UserCreateRequest, \
     PriceCreateRequest, PriceUpdateRequest, WeekTemplate, TemplateUpdateRequest, WorkingDayUpdateRequest
@@ -1010,3 +1010,50 @@ async def delete_prepayment(
 ) -> str:
     """Удаление периода предоплаты"""
     return await PrepayModel.delete(session=session, prepay_id=prepay_id)
+
+
+async def create_master_notification(
+        master_id: uuid.UUID,
+        session: AsyncSession
+) -> uuid.UUID:
+    """Создание настроек уведомлений для мастера"""
+    return await MasterNotificationModel.create(session=session, master_id=master_id)
+
+
+async def get_master_notification(
+        master_id: uuid.UUID,
+        session: AsyncSession
+) -> Tuple[str, Optional[dict]]:
+    """Получение настроек уведомлений мастера"""
+    notification = await MasterNotificationModel.get_by_master_id(
+        session=session,
+        master_id=master_id
+    )
+
+    if not notification:
+        return "notification not found", None
+
+    resp = {
+        "id": str(notification.id),
+        "master_id": str(notification.master_id),
+        "appointment_notification": notification.appointment_notification,
+        "appointment_cancel_notification": notification.appointment_cancel_notification,
+        "appointment_confirm_notification": notification.appointment_confirm_notification,
+        "guide_approved_notification": notification.guide_approved_notification,
+        "subscription_ending_notification": notification.subscription_ending_notification
+    }
+
+    return "success", resp
+
+
+async def update_master_notification(
+        master_id: uuid.UUID,
+        update_data: dict,
+        session: AsyncSession
+) -> str:
+    """Обновление настроек уведомлений мастера"""
+    return await MasterNotificationModel.update(
+        session=session,
+        master_id=master_id,
+        update_data=update_data
+    )

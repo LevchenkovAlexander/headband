@@ -235,3 +235,14 @@ class PrepayActiveResponse(BaseModel):
     status: str
     prepay: Optional[PrepayBaseResponse] = None
 
+class MasterNotificationResponse(BaseModel):
+    id: UUID
+    master_id: UUID
+    appointment_notification: bool
+    appointment_cancel_notification: bool
+    appointment_confirm_notification: bool
+    guide_approved_notification: bool
+    subscription_ending_notification: bool
+
+class MasterNotificationGetResponse(StatusResponse):
+    notification: MasterNotificationResponse
