@@ -4,7 +4,7 @@ import os
 from aiogram import Bot, Dispatcher, types
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import db_functions
+from backend.database import miniapp_db_fcn
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 BOT_URL = os.getenv('BOT_URL')

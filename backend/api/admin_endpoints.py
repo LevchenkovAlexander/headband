@@ -3,7 +3,7 @@ import uuid
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import db_functions, get_db_session
+from backend.database import miniapp_db_fcn, get_db_session
 from backend.database.requests import OrganizationCreateRequest, OrganizationUpdateRequest, PriceCreateRequest, \
     AdminCreateRequest, AdminUpdateRequest, OfferCreateRequest, OfferUpdateRequest, PriceUpdateRequest, \
     AdminAuthRequest, CategoryCreateRequest

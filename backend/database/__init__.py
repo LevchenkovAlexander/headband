@@ -185,6 +185,8 @@ class MasterModel(Base):
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     master_link_id: Mapped[uuid.UUID]
     user_link_id: Mapped[uuid.UUID]
+    referrer_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)  # Кто пригласил
+    referral_counted: Mapped[bool] = mapped_column(default=False)  # Засчитан ли реферал
 
     # Relationships
     appointments: Mapped[List["AppointmentModel"]] = relationship(
@@ -248,6 +250,20 @@ class MasterModel(Base):
         passive_deletes=True,
         uselist=False
     )
+    subscription: Mapped["SubscriptionModel"] = relationship(
+        "SubscriptionModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False
+    )
+    referral_stats: Mapped["MasterReferralModel"] = relationship(
+        "MasterReferralModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False
+    )
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -279,6 +295,19 @@ class MasterModel(Base):
         query = update(cls).where(cls.id == master_id).values(**update_data)
         await session.execute(query)
         return "success"
+
+    @classmethod
+    async def mark_referral_counted(cls, session: AsyncSession, master_id: uuid.UUID) -> str:
+        """Отметить, что реферал засчитан"""
+        query = update(cls).where(cls.id == master_id).values(referral_counted=True)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def get_referrer_id(cls, session: AsyncSession, master_id: uuid.UUID) -> Optional[uuid.UUID]:
+        """Получить ID реферера мастера"""
+        master = await session.get(cls, master_id)
+        return master.referrer_id if master else None
 
 class MasterCategoryModel(Base):
     __tablename__ = "master_categories"
@@ -824,3 +853,107 @@ class MasterNotificationModel(Base):
         query = update(cls).where(cls.master_id == master_id).values(**update_data)
         await session.execute(query)
         return "success"
+
+    # Добавить в __init__.py после MasterNotificationModel
+
+class SubscriptionModel(Base):
+    __tablename__ = "subscriptions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"),
+                                                 unique=True)
+    start_date: Mapped[date]
+    end_date: Mapped[date]
+    payment_amount: Mapped[int]
+    is_first_subscription: Mapped[bool] = mapped_column(default=False)  # Первая ли это подписка
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="subscription", uselist=False)
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        subscription = cls(**data)
+        session.add(subscription)
+        await session.flush()
+        return subscription.id
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, subscription_id: uuid.UUID, update_data: dict):
+        query = update(cls).where(cls.id == subscription_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, subscription_id: uuid.UUID):
+        obj = await session.get(cls, subscription_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such subscription"
+
+    @classmethod
+    async def is_first_subscription(cls, session: AsyncSession, master_id: uuid.UUID) -> bool:
+        """Проверка, есть ли у мастера активная или была ли подписка ранее"""
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return result.scalars().first() is None
+
+class MasterReferralModel(Base):
+    __tablename__ = "master_referrals"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"),
+                                                 unique=True)
+    invited_masters_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    invited_users_count: Mapped[int] = mapped_column(BigInteger, default=0)
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="referral_stats", uselist=False)
+
+    @classmethod
+    async def create(cls, session: AsyncSession, master_id: uuid.UUID) -> uuid.UUID:
+        """Создание статистики рефералов для мастера"""
+        referral = cls(master_id=master_id)
+        session.add(referral)
+        await session.flush()
+        return referral.id
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        """Получение статистики рефералов мастера"""
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def increment_masters(cls, session: AsyncSession, master_id: uuid.UUID) -> str:
+        """Увеличить счетчик приглашенных мастеров"""
+        query = update(cls).where(cls.master_id == master_id).values(
+            invited_masters_count=cls.invited_masters_count + 1
+        )
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def increment_users(cls, session: AsyncSession, master_id: uuid.UUID) -> str:
+        """Увеличить счетчик приглашенных пользователей"""
+        query = update(cls).where(cls.master_id == master_id).values(
+            invited_users_count=cls.invited_users_count + 1
+        )
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def get_stats(cls, session: AsyncSession, master_id: uuid.UUID) -> Optional[dict]:
+        """Получить полную статистику рефералов"""
+        referral = await cls.get_by_master_id(session=session, master_id=master_id)
+        if not referral:
+            return None
+        return {
+            "invited_masters": referral.invited_masters_count,
+            "invited_users": referral.invited_users_count,
+        }

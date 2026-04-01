@@ -35,8 +35,10 @@ logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(leveln
 
 
 def run_bot_process():
-    """Запуск бота в отдельном процессе"""
-    asyncio.run(bot_main.start_bot())
+    """Импортируем функцию запуска бота"""
+    from backend.telegram_bot.bot_main import run_bot_process as bot_runner
+    bot_runner()
+
 
 def run_server_process():
     """Запуск сервера в отдельном процессе"""

@@ -37,12 +37,12 @@ async def lifespan(app: FastAPI):
         await db.close_connection()"""
 
 if __name__ == "__main__":
-    #bot_process = Process(target=run_bot_process)
+    bot_process = Process(target=run_bot_process)
     server_process = Process(target=run_server_process)
 
-    #bot_process.start()
+    bot_process.start()
     server_process.start()
 
-    #bot_process.join()
+    bot_process.join()
     server_process.join()
 
