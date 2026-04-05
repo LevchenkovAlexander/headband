@@ -26,10 +26,12 @@ class MasterUpdateRequest(BaseModel):
     telephone: Optional[str] = None
     description: Optional[str] = None
 
-class MasterCreateRequest(BaseModel):
-    chat_id: int
-    username: Optional[str] = "no info"
+class MasterCreateRequestTG(BaseModel):
+    chat_id_tg: int
+    username_tg: Optional[str] = "no info"
     full_name: Optional[str] = "no info"
+    master_link_id: uuid.UUID
+    user_link_id: uuid.UUID
 
 class UserCreateRequest(BaseModel):
     chat_id: int
@@ -68,10 +70,9 @@ class PriceUpdateRequest(BaseModel):
 
 
 class PriceCreateRequest(BaseModel):
-    organization_id: uuid.UUID
     category: int
     name: str
-    approximate_time: time
+    approximate_time: int
     price: int
 
 class AdminCreateRequest(BaseModel):

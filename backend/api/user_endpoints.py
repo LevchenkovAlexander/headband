@@ -21,7 +21,7 @@ async def create_appointment(
 ):
     """Создание записи на приём"""
     # Проверяем доступное время
-    poss_times, status = await db_functions.get_possible_start_time(
+    poss_times, status = await miniapp_db_fcn.get_possible_start_time(
         master_id=appointment.master_id,
         app_date=appointment.date,
         price_id=appointment.price_id,
@@ -34,7 +34,7 @@ async def create_appointment(
     if appointment.time not in poss_times:
         raise HTTPException(status_code=400, detail="time is already taken")
 
-    status = await db_functions.create_appointment(
+    status = await miniapp_db_fcn.create_appointment(
         appointment_request=appointment,
         session=session
     )
@@ -53,7 +53,7 @@ async def get_possible_start_times(
         session: AsyncSession = Depends(get_db_session)
 ):
     """Получение доступного времени для записи"""
-    poss_start, status = await db_functions.get_possible_start_time(
+    poss_start, status = await miniapp_db_fcn.get_possible_start_time(
         master_id=master_id,
         app_date=appointment_date,
         price_id=price_id,
@@ -75,7 +75,7 @@ async def cancel_appointment(
         session: AsyncSession = Depends(get_db_session)
 ):
     """Отмена записи"""
-    status = await db_functions.cancel_appointment(
+    status = await miniapp_db_fcn.cancel_appointment(
         appointment_id=appointment_id,
         session=session
     )
@@ -92,7 +92,7 @@ async def get_user_appointments(
         session: AsyncSession = Depends(get_db_session)
 ):
     """Получение записей пользователя"""
-    appointments = await db_functions.get_appointments_by_user(
+    appointments = await miniapp_db_fcn.get_appointments_by_user(
         chat_id=chat_id,
         session=session
     )

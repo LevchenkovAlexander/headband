@@ -160,21 +160,6 @@ async def get_master_categories(
     }
 
 
-@router.get("/prices", response_model=dict)
-async def get_master_prices(
-    master_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Получение прайс-листа мастера"""
-    prices = await miniapp_db_fcn.get_prices_by_master(
-        master_id=master_id,
-        session=session
-    )
-    return {
-        "status": "success",
-        "prices": prices
-    }
-
 @router.get("/addresses", response_model=AddressListResponse)
 async def get_master_addresses(
     master_id: uuid.UUID,
@@ -312,12 +297,7 @@ async def create_price(
     session: AsyncSession = Depends(get_db_session)
 ):
     """Создание позиции прайса"""
-    status, price_id = await miniapp_db_fcn.create_price(
-        master_id=request.master_id,
-        category_id=request.category_id,
-        name=request.name,
-        price=request.price,
-        approximate_time=request.approximate_time,
+    status, price_id = await miniapp_db_fcn.create_price_position(price_position=request,
         session=session
     )
     if status != "success":

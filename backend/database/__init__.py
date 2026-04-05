@@ -81,10 +81,21 @@ class Week(Enum):
     SATURDAY = 6
     SUNDAY = 7
 
+class AppointmentStatus(Enum):
+    CONFIRMED = 1
+    PENDING = 2
+    CANCELLED = 3
+
 class GuideStatus(Enum):
     CONFIRMED = 1
     PENDING = 2
     DENIED = 3
+
+
+class SubLevel(Enum):
+    HEADBAND_PRO = 1
+    HEADBAND_BASE = 2
+    HEADBEAUTY = 3
 
 class AdminModel(Base):
     __tablename__ = "admins"
@@ -279,8 +290,8 @@ class MasterModel(Base):
         return result.scalars().first()
 
     @classmethod
-    async def get_by_chat_id(cls, session: AsyncSession, chat_id: int):
-        query = select(cls).where(cls.chat_id == chat_id)
+    async def get_by_chat_id_tg(cls, session: AsyncSession, chat_id: int):
+        query = select(cls).where(cls.chat_id_tg == chat_id)
         result = await session.execute(query)
         return result.scalars().first()
 
@@ -546,7 +557,7 @@ class PriceModel(Base):
     name: Mapped[str] = mapped_column(String)
     price: Mapped[int] = mapped_column(BigInteger)
     category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"))
-    approximate_time: Mapped[int] = mapped_column(BigInteger)
+    approximate_time: Mapped[int]
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
 
     # Relationships
@@ -617,6 +628,7 @@ class AppointmentModel(Base):
     final_price: Mapped[int]
     price_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prices.id", ondelete="CASCADE"))
     working_day_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("working_days.id", ondelete="CASCADE"))
+    status: Mapped[int]
 
     # Relationships
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="appointments")
@@ -662,6 +674,18 @@ class AppointmentModel(Base):
         query = select(cls).where(and_(cls.master_id == master_id, cls.date >= start_date, cls.date <= end_date))
         result = await session.execute(query)
         return list(result.scalars().all())
+
+    @classmethod
+    async def confirm(cls, session: AsyncSession, id: uuid.UUID):
+        query = update(cls).where(cls.id ==id).values(status=AppointmentStatus.CONFIRMED)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def cancel(cls, session: AsyncSession, id: uuid.UUID):
+        query = update(cls).where(cls.id == id).values(status=AppointmentStatus.CANCELLED)
+        await session.execute(query)
+        return "success"
 
 class GuidesModel(Base):
     __tablename__ = "guides"
@@ -863,8 +887,8 @@ class SubscriptionModel(Base):
                                                  unique=True)
     start_date: Mapped[date]
     end_date: Mapped[date]
-    payment_amount: Mapped[int]
-    is_first_subscription: Mapped[bool] = mapped_column(default=False)  # Первая ли это подписка
+    is_first_subscription: Mapped[bool] = mapped_column(default=True)  # Первая ли это подписка
+    level: Mapped[int]
 
     # Relationships
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="subscription", uselist=False)
@@ -883,6 +907,14 @@ class SubscriptionModel(Base):
         return result.scalars().first()
 
     @classmethod
+    async def is_active(cls, session: AsyncSession, master_id: uuid.UUID, day: date):
+        query = select(cls).where(cls.master_id==master_id, day>=cls.start_date, day<=cls.end_date)
+        result = await session.execute(query)
+        if result.scalars().first() != None:
+            return True
+        return False
+
+    @classmethod
     async def update(cls, session: AsyncSession, subscription_id: uuid.UUID, update_data: dict):
         query = update(cls).where(cls.id == subscription_id).values(**update_data)
         await session.execute(query)
@@ -895,13 +927,6 @@ class SubscriptionModel(Base):
             await session.delete(obj)
             return "success"
         return "no such subscription"
-
-    @classmethod
-    async def is_first_subscription(cls, session: AsyncSession, master_id: uuid.UUID) -> bool:
-        """Проверка, есть ли у мастера активная или была ли подписка ранее"""
-        query = select(cls).where(cls.master_id == master_id)
-        result = await session.execute(query)
-        return result.scalars().first() is None
 
 class MasterReferralModel(Base):
     __tablename__ = "master_referrals"
