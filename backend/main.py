@@ -4,11 +4,13 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-from backend.api import master_endpoints, user_endpoints
+from backend.api.master import guides, profile, schedule, welcome
 
 from backend import run_bot_process, run_server_process, app
-app.include_router(user_endpoints.router)
-app.include_router(master_endpoints.router)
+app.include_router(welcome.router)
+app.include_router(profile.router)
+app.include_router(guides.router)
+app.include_router(schedule.router)
 
 
 """@asynccontextmanager

@@ -1,3 +1,6 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database import MasterModel, UserModel
 from backend.database.operations import *
 
 

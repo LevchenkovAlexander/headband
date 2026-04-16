@@ -13,7 +13,7 @@ def _int_minutes_to_time(minutes: int) -> time:
     return time(hour=hours, minute=mins)
 
 
-def _get_week_dates(start_date: datetime) -> list[datetime]:
+def _get_week_dates(start_date: date) -> list[date]:
     """Возвращает список из 7 дней недели, начиная с start_date"""
     week = [start_date + timedelta(days=i) for i in range(7)]
     return week
@@ -95,3 +95,4 @@ async def _cancel_appointments_in_date_range(
         cancelled.append(str(apt.id))
 
     return cancelled
+

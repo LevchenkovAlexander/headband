@@ -3,11 +3,11 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import MasterNotificationModel, MasterModel
-from backend.database.bot_db_fcn import check_account_type
+
 from backend.telegram_bot.keyboards import get_notification_settings_keyboard, get_master_main_keyboard
 
 
-async def callback_notification_settings(callback: CallbackQuery, session: AsyncSession):
+'''async def callback_notification_settings(callback: CallbackQuery, session: AsyncSession):
     """Настройки уведомлений"""
     chat_id = callback.from_user.id
     master_id, _ = await check_account_type(chat_id, session)
@@ -97,4 +97,4 @@ def register_handlers(dp):
     dp.register_callback_query_handler(
         callback_notification_toggle,
         lambda c: c.data.startswith("notif_toggle_")
-    )
+    )'''

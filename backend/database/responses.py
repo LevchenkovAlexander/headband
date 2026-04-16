@@ -13,23 +13,10 @@ class StatusResponse(BaseModel):
 class IDResponse(StatusResponse):
     id: uuid.UUID
 
-class AppointmentResponse(BaseModel):
-    id: UUID
-    user_id: UUID
-    master_id: UUID
-    date: date
-    time: time
-    final_price: int
-    price_id: UUID
-    working_day_id: UUID
-    address: Optional[str] = None
-    service_name: Optional[str] = None
 
 
-class AppointmentListResponse(BaseModel):
-    status: str
-    count: int
-    appointments: List[AppointmentResponse]
+
+
 
 
 class PossibleTimesResponse(BaseModel):
@@ -37,21 +24,11 @@ class PossibleTimesResponse(BaseModel):
     times: List[time]
 
 
-class WeekTimetableResponse(BaseModel):
-    status: str
-    week_appointments: List[List[AppointmentResponse]]
 
 
-class GuideBaseResponse(BaseModel):
-    id: UUID
-    steps: str
-    author: UUID
 
 
-class GuidePageResponse(BaseModel):
-    status: str
-    guides_fit: List[GuideBaseResponse]
-    guides_all: List[GuideBaseResponse]
+
 
 
 class GuideStepResponse(BaseModel):
@@ -89,10 +66,10 @@ class UserBaseResponse(BaseModel):
     username: Optional[str] = None
 
 
-class UserResponseMainPage(BaseModel):
+"""class UserResponseMainPage(BaseModel):
     status: str
     appointments: List[AppointmentResponse]
-    categories: List[str]
+    categories: List[str]"""
 
 
 class MasterListItem(BaseModel):

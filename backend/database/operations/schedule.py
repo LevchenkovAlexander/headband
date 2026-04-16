@@ -6,8 +6,8 @@ from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import WorkingDayModel, WeekTemplateModel, MasterAbsenceModel, AddressModel
-from backend.database.miniapp_db_fcn import _cancel_appointments_in_date_range
-from backend.database.operations.utils import _cancel_conflicting_appointments_for_date
+from backend.database.operations.utils import _cancel_conflicting_appointments_for_date, \
+    _cancel_appointments_in_date_range
 from backend.database.requests import WeekTemplate, TemplateUpdateRequest, WorkingDayUpdateRequest
 
 

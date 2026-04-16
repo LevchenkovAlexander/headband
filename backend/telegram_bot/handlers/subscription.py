@@ -6,16 +6,12 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.types import CallbackQuery, LabeledPrice
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import SubscriptionModel
-from backend.database.bot_db_fcn import (
-    create_subscription,
-    get_subscription_status,
-    check_account_type
-)
+
 from backend.telegram_bot.keyboards import get_subscription_keyboard, get_master_main_keyboard
 from backend.telegram_bot.bot_config import Config
 
 
-async def callback_subscription_info(callback: CallbackQuery, session: AsyncSession):
+'''async def callback_subscription_info(callback: CallbackQuery, session: AsyncSession):
     """Информация о подписке"""
     chat_id = callback.from_user.id
     master_id, _ = await check_account_type(chat_id, session)
@@ -134,4 +130,4 @@ def register_handlers(dp):
     dp.register_message_handler(
         process_successful_payment,
         content_types=["successful_payment"]
-    )
+    )'''

@@ -15,16 +15,20 @@ app = FastAPI(
     version="1.0.0",
     openapi_tags=[
         {
-            "name": "User",
-            "description": "Операции для клиентов (пользователей)"
+            "name": "Master.Profile",
+            "description": "Операции модуля мастера на странице профиля"
         },
         {
-            "name": "Master",
-            "description": "Операции для мастеров"
+            "name": "Master.Schedule",
+            "description": "Операции модуля мастера на странице расписания"
         },
         {
-            "name": "Admin",
-            "description": "Административные операции"
+            "name": "Master.Welcome",
+            "description": "Операции модуля мастера на первой странице"
+        },
+        {
+            "name": "Master.Guide",
+            "description": "Операции модуля мастера на странице гайдов"
         }
     ]
 )

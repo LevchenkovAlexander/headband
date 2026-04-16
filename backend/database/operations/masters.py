@@ -58,3 +58,7 @@ async def create_master_tg(
 async def get_master_categories(master_id: uuid.UUID, session: AsyncSession):
     """Получение категорий мастера"""
     return await MasterModel.get_categories(session=session, master_id=master_id)
+
+
+async def get_master(master_id: uuid.UUID, session: AsyncSession) -> MasterModel:
+    return await MasterModel.get_by_id(master_id=master_id, session=session)

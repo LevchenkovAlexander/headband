@@ -6,7 +6,7 @@ from typing import List, Optional, AsyncGenerator
 
 from dotenv import load_dotenv
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text, delete, and_
+from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text, delete, and_, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import time, date
@@ -192,7 +192,7 @@ class MasterModel(Base):
     chat_id_max: Mapped[int] = mapped_column(BigInteger, nullable=True)
     username_max: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    telephone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     master_link_id: Mapped[uuid.UUID]
     user_link_id: Mapped[uuid.UUID]
@@ -274,6 +274,12 @@ class MasterModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         uselist=False
+    )
+    guide_stats: Mapped[List["GuideStatModel"]] = relationship(
+        "GuideStatModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
 
     @classmethod
@@ -625,6 +631,7 @@ class AppointmentModel(Base):
     master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
     date: Mapped[date]
     start_time: Mapped[time]
+    end_time: Mapped[time]
     final_price: Mapped[int]
     price_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prices.id", ondelete="CASCADE"))
     working_day_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("working_days.id", ondelete="CASCADE"))
@@ -689,13 +696,30 @@ class AppointmentModel(Base):
 
 class GuidesModel(Base):
     __tablename__ = "guides"
-
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str]
     category: Mapped[str]
-    steps: Mapped[str]
     author: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     guide_status: Mapped[int]
+
+    steps_list: Mapped[List["GuideTextStepModel"]] = relationship(
+        "GuideTextStepModel",
+        back_populates="guide",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    video_steps_list: Mapped[List["GuideVideoStepModel"]] = relationship(
+        "GuideVideoStepModel",
+        back_populates="guide",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    guide_stats: Mapped[List["GuideStatModel"]] = relationship(
+        "GuideStatModel",
+        back_populates="guide",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def get_all(cls, session: AsyncSession):
@@ -709,11 +733,6 @@ class GuidesModel(Base):
         result = await session.execute(query)
         return result.scalars().all()
 
-    @classmethod
-    async def get_by_id(cls, session: AsyncSession, guide_id: uuid.UUID):
-        query = select(cls.steps).where(cls.id == guide_id)
-        result = await session.execute(query)
-        return result.scalars().first()
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -729,6 +748,191 @@ class GuidesModel(Base):
         query = update(cls).where(cls.id ==id, cls.author == author).values(**update_data)
         await session.execute(query)
         return "success"
+
+
+class GuideTextStepModel(Base):
+    __tablename__ = "guide_text_steps"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    guide_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("guides.id", ondelete="CASCADE"))
+    step_num: Mapped[int]
+    text: Mapped[str]
+
+    guide: Mapped["GuidesModel"] = relationship("GuidesModel", back_populates="steps_list")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        step = cls(**data)
+        session.add(step)
+        return step.id
+
+    @classmethod
+    async def get_by_guide_id(cls, session: AsyncSession, guide_id: uuid.UUID):
+        query = select(cls).where(cls.guide_id == guide_id).order_by(cls.step_num)
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def get_by_num_id(cls, session: AsyncSession, step_num: int, guide_id: uuid.UUID):
+        query = select(cls).where(and_(cls.guide_id == guide_id, cls.step_num==step_num))
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, step_id: uuid.UUID, update_data: dict):
+        query = update(cls).where(cls.id == step_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, step_id: uuid.UUID):
+        obj = await session.get(cls, step_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "step not found"
+
+
+class GuideVideoStepModel(Base):
+    __tablename__ = "guide_video_steps"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    guide_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("guides.id", ondelete="CASCADE"))
+    step_num: Mapped[int]
+    video_name: Mapped[str]
+    video_file_path: Mapped[str]
+    description: Mapped[str] = mapped_column(String, nullable=True)
+
+    guide: Mapped["GuidesModel"] = relationship("GuidesModel", back_populates="video_steps_list")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        step = cls(**data)
+        session.add(step)
+        await session.flush()
+        return step.id
+
+    @classmethod
+    async def get_by_guide_id(cls, session: AsyncSession, guide_id: uuid.UUID):
+        query = select(cls).where(cls.guide_id == guide_id).order_by(cls.step_num)
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def get_by_num_id(cls, session: AsyncSession, step_num: int, guide_id: uuid.UUID):
+        query = select(cls.description).where(and_(cls.guide_id == guide_id, cls.step_num == step_num))
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, step_id: uuid.UUID, update_data: dict):
+        query = update(cls).where(cls.id == step_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, step_id: uuid.UUID):
+        obj = await session.get(cls, step_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "video step not found"
+
+
+class GuideStatModel(Base):
+    __tablename__ = "guide_stats"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    guide_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("guides.id", ondelete="CASCADE"))
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
+    action: Mapped[int] = mapped_column(default=0)  # 0: просмотр, 1: просмотр с лайком
+
+    guide: Mapped["GuidesModel"] = relationship("GuidesModel",
+                                                back_populates="guide_stats")
+    master: Mapped["MasterModel"] = relationship("MasterModel",
+                                                 back_populates="guide_stats")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict) -> uuid.UUID:
+        """Создание записи статистики"""
+        stat = cls(**data)
+        session.add(stat)
+        return stat.id
+
+    @classmethod
+    async def record_action(cls, session: AsyncSession, guide_id: uuid.UUID, master_id: uuid.UUID,
+                            action: int) -> uuid.UUID:
+        """Удобный метод для быстрой записи действия (просмотр/лайк)"""
+        return await cls.create(session, {"guide_id": guide_id, "master_id": master_id, "action": action})
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, stat_id: uuid.UUID) -> Optional["GuideStatModel"]:
+        query = select(cls).where(cls.id == stat_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_guide_id(cls, session: AsyncSession, guide_id: uuid.UUID) -> List["GuideStatModel"]:
+        query = select(cls).where(cls.guide_id == guide_id)
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+    @classmethod
+    async def get_by_guide_master(cls, session: AsyncSession, guide_id: uuid.UUID, master_id: uuid.UUID) -> uuid.UUID:
+        query = select(cls.id).where(and_(cls.guide_id == guide_id, cls.master_id==master_id))
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID) -> List["GuideStatModel"]:
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+    @classmethod
+    async def check_like(cls, session: AsyncSession, master_id: uuid.UUID, guide_id: uuid.UUID):
+        query = select(cls).where(and_(cls.guide_id==guide_id, cls.master_id==master_id, cls.action==1))
+        result = await session.execute(query)
+        if result:
+            return True
+        else:
+            return False
+
+    @classmethod
+    async def get_guide_stats(cls, session: AsyncSession, guide_id: uuid.UUID) -> dict:
+        """Возвращает агрегированную статистику по гайду: просмотры и лайки"""
+        query = select(cls.action, func.count(cls.id)).where(cls.guide_id == guide_id).group_by(cls.action)
+        result = await session.execute(query)
+
+        stats = {"views": 0, "likes": 0}
+        for action, count in result.all():
+            if action == 0:
+                stats["views"] = count
+            elif action == 1:
+                stats["likes"] = count
+        return stats
+
+    @classmethod
+    async def update(cls, session: AsyncSession, stat_id: uuid.UUID, update_data: dict) -> str:
+        query = update(cls).where(cls.id == stat_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, stat_id: uuid.UUID) -> str:
+        obj = await session.get(cls, stat_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such stat"
+
+    @classmethod
+    async def toggle_action(cls, session: AsyncSession, stat_id: uuid.UUID) -> int:
+        obj = await session.get(cls, stat_id)
+        if not obj:
+            raise ValueError(f"Stat with id {stat_id} not found")
+
+        obj.action = 1 - obj.action  # переключение
+        await session.flush()  # отправляем изменение в БД без фиксации транзакции
+        return obj.action
 
 class EarningsModel(Base):
     __tablename__ = "earnings"

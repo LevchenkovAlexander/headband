@@ -4,11 +4,44 @@ from typing import Optional, List
 from pydantic import BaseModel, field_validator, EmailStr
 
 
+
+
+
 class PossibleTimeRequest(BaseModel):
     master_id: uuid.UUID
     appointment_date: date
     price_id: uuid.UUID
 
+class StepCreateRequest(BaseModel):
+    master_id: uuid.UUID
+    guide_id: uuid.UUID
+    step_num: int
+    title: str
+    text: str
+
+class StepUpdateRequest(BaseModel):
+    master_id: uuid.UUID
+    guide_id: uuid.UUID
+    step_id: uuid.UUID
+    step_num: Optional[int] = None
+    title: Optional[str] = None
+    text: Optional[str] = None
+
+class VideoStepCreateRequest(BaseModel):
+    master_id: uuid.UUID
+    guide_id: uuid.UUID
+    step_num: int
+    video_name: str
+    video_file_path: str
+    description: Optional[str] = None
+
+class VideoStepUpdateRequest(BaseModel):
+    master_id: uuid.UUID
+    guide_id: uuid.UUID
+    step_num: Optional[int] = None
+    video_name: Optional[str] = None
+    video_file_path: Optional[str] = None
+    description: Optional[str] = None
 
 class IDRequest(BaseModel):
     id: uuid.UUID

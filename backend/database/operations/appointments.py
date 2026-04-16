@@ -1,13 +1,14 @@
 import uuid
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.master.schedule import AppointmentResponse
 from backend.database import MasterModel, SubscriptionModel, WeekTemplateModel, WorkingDayModel, PriceModel, \
     AppointmentModel, MasterAbsenceModel, AddressModel
 from backend.database.operations.utils import _time_to_timedelta, _timedelta_to_time, _timedelta_to_int_minutes, \
     _get_week_dates
-from backend.database.responses import AppointmentResponse
+
 
 
 async def get_possible_start_time(
@@ -147,7 +148,7 @@ async def get_appointments_by_date(
 
 async def get_week_timetable(
         master_id: uuid.UUID,
-        start_date: datetime,
+        start_date: date,
         session: AsyncSession
 ):
     """Получение расписания мастера на неделю"""
@@ -157,7 +158,7 @@ async def get_week_timetable(
     for day in week_list:
         appointments, count, status, addresses, names = await get_appointments_by_date(
             master_id=master_id,
-            app_date=day.date(),
+            app_date=day,
             session=session
         )
         day_appointments = []

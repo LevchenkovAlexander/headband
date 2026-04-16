@@ -5,17 +5,13 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import MasterModel, UserModel
-from backend.database.bot_db_fcn import (
-    create_master_from_deeplink,
-    check_account_type,
-    get_master_referral_links
-)
+
 from backend.telegram_bot import dp
 from backend.telegram_bot.keyboards import get_master_main_keyboard, get_become_master_keyboard
 from backend.telegram_bot.bot_config import Config
 
 
-async def cmd_start(message: types.Message, session: AsyncSession):
+'''async def cmd_start(message: types.Message, session: AsyncSession):
     """Обработчик команды /start"""
     chat_id = message.chat.id
     username = message.from_user.username
@@ -86,4 +82,4 @@ async def callback_main_menu(callback: CallbackQuery, session: AsyncSession):
 def register_handlers(dp):
     """Регистрация хендлеров этого модуля"""
     dp.register_message_handler(cmd_start, commands=['start'])
-    dp.register_callback_query_handler(callback_main_menu, text="main_menu")
+    dp.register_callback_query_handler(callback_main_menu, text="main_menu")'''

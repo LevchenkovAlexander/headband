@@ -11,9 +11,9 @@ from backend.database import miniapp_db_fcn, get_db_session
 from backend.database.requests import MasterUpdateRequest, AddressCreateRequest, AddressUpdateRequest, WeekTemplate, \
     TemplateCreateRequest, TemplateUpdateRequest, WorkingDayUpdateRequest, AbsenceCreateRequest, AbsenceUpdateRequest, \
     GuideCreateRequest, GuideUpdateRequest, EarningDateRangeRequest, EarningCreateRequest, EarningUpdateRequest, \
-    PrepayCreateRequest, PrepayUpdateRequest, PriceCreateRequest, PriceUpdateRequest, MasterNotificationUpdateRequest
-from backend.database.responses import AppointmentResponse, AppointmentListResponse, StatusResponse, \
-    WeekTimetableResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse, \
+    PrepayCreateRequest, PrepayUpdateRequest, PriceCreateRequest, PriceUpdateRequest, MasterNotificationUpdateRequest, \
+    StepUpdateRequest, StepCreateRequest
+from backend.database.responses import StatusResponse, GuidePageResponse, IDResponse, AddressListResponse, WeekTemplateResponse, \
     AbsenceCreateResponse, AbsenceListResponse, PriceListResponseFile, EarningListResponse, PrepayListResponse, \
     PriceListResponse, MasterNotificationGetResponse
 from backend.model import pricelist
@@ -27,53 +27,10 @@ router = APIRouter(
 )
 
 
-@router.get("/appointments/week/", response_model=WeekTimetableResponse)
-async def get_week_timetable(
-        master_id: uuid.UUID,
-        start_date: datetime,
-        session: AsyncSession = Depends(get_db_session)
-):
-    """Получение расписания мастера на неделю"""
-    week_appointments, status = await miniapp_db_fcn.get_week_timetable(
-        master_id=master_id,
-        start_date=start_date,
-        session=session
-    )
-    if status != "success":
-        raise HTTPException(status_code=404, detail=status)
-
-    return {
-        "status": status,
-        "week_appointments": week_appointments
-    }
 
 
 
-@router.get("/appointments/", response_model=AppointmentListResponse)
-async def get_appointments_by_date(
-        master_id: uuid.UUID,
-        date: date,
-        session: AsyncSession = Depends(get_db_session)
-):
-    """Получение записей мастера на дату"""
-    appointments, count, status, addresses, names = await miniapp_db_fcn.get_appointments_by_date(
-        master_id=master_id,
-        app_date=date,
-        session=session
-    )
 
-    a = []
-    for i, appointment in enumerate(appointments):
-        aresponse = AppointmentResponse.model_validate(appointment).model_dump()
-        aresponse["address"] = addresses[i] if i < len(addresses) else None
-        aresponse["service_name"] = names[i] if i < len(names) else None
-        a.append(aresponse)
-
-    return {
-        "status": status,
-        "count": count,
-        "appointments": a
-    }
 
 @router.patch("/profile", response_model=StatusResponse)
 async def update_master_profile(
@@ -103,20 +60,51 @@ async def get_guides(
         "guides_all": g_all
     }
 
-@router.get("/guides/{guide_id}", response_model=dict)
-async def get_steps(
+@router.get("/guides/{guide_id}/steps", response_model=dict)
+async def get_guide_steps(
     guide_id: uuid.UUID,
     session: AsyncSession = Depends(get_db_session)
 ):
     """Получение шагов конкретного гайда"""
-    status, steps = await miniapp_db_fcn.get_steps(
+    status, steps = await miniapp_db_fcn.get_steps(guide_id=guide_id, session=session)
+    return {"status": status, "steps": steps}
+
+
+@router.post("/guides/{guide_id}/steps", response_model=IDResponse)
+async def create_guide_step(
+    guide_id: uuid.UUID,
+    request: StepCreateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Создание шага для гайда"""
+    res = await miniapp_db_fcn.create_step(
         guide_id=guide_id,
+        step_data=request.model_dump(),
         session=session
     )
-    return {
-        "status": status,
-        "steps": steps
-    }
+    return res
+
+@router.patch("/guides/steps/", response_model=StatusResponse)
+async def update_guide_step(
+    request: StepUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Обновление шага гайда (можно передавать только изменённые поля)"""
+    res = await miniapp_db_fcn.update_step(
+        step_id=request.step_id,
+        update_data=request.model_dump(exclude_unset=True),
+        session=session
+    )
+    return res
+
+@router.delete("/guides/steps/{step_id}", response_model=StatusResponse)
+async def delete_guide_step(
+    step_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Удаление шага гайда"""
+    res = await miniapp_db_fcn.delete_step(step_id=step_id, session=session)
+    return res
 
 @router.post("/guides", response_model=IDResponse)
 async def create_guide(

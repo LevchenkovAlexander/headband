@@ -2,12 +2,11 @@ from aiogram import types
 from aiogram.dispatcher import Dispatcher
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.database.bot_db_fcn import check_account_type
 from backend.telegram_bot.keyboards import get_master_main_keyboard
 from backend.telegram_bot.bot_config import Config
 
 
-async def callback_open_miniapp(callback: CallbackQuery, session: AsyncSession):
+'''async def callback_open_miniapp(callback: CallbackQuery, session: AsyncSession):
     """Открытие Mini App"""
     chat_id = callback.from_user.id
     master_id, _ = await check_account_type(chat_id, session)
@@ -44,4 +43,4 @@ def register_handlers(dp):
     dp.register_message_handler(
         handle_web_app_data,
         content_types=["web_app_data"]
-    )
+    )'''

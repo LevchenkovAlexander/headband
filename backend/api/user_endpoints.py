@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import Depends, APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.responses import AppointmentListResponse, StatusResponse, PossibleTimesResponse
+from backend.database.responses import StatusResponse, PossibleTimesResponse
 from backend.database import miniapp_db_fcn, get_db_session
 from backend.database.requests import AppointmentCreateRequest
 
@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 
-@router.post("/appointments/", response_model=StatusResponse)
+'''@router.post("/appointments/", response_model=StatusResponse)
 async def create_appointment(
         appointment: AppointmentCreateRequest,
         session: AsyncSession = Depends(get_db_session)
@@ -102,3 +102,4 @@ async def get_user_appointments(
         "count": len(appointments),
         "appointments": appointments
     }
+'''
