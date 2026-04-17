@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import miniapp_db_fcn, get_db_session
 from backend.database.responses import StatusResponse
 
-"""Pydantic"""
+
 #Requests
 class DateRequest(BaseModel):
     master_id: uuid.UUID

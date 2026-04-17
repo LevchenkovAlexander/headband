@@ -32,42 +32,9 @@ router = APIRouter(
 
 
 
-@router.patch("/profile", response_model=StatusResponse)
-async def update_master_profile(
-    update_data: MasterUpdateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Обновление профиля мастера"""
-    status = await miniapp_db_fcn.update_master(
-        update_data=update_data,
-        session=session
-    )
-    return {"status": status}
 
-@router.get("/guides", response_model=GuidePageResponse)
-async def get_guides(
-    master_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Получение списка гайдов для мастера"""
-    status, g_fitable, g_all = await miniapp_db_fcn.get_guides(
-        master_id=master_id,
-        session=session
-    )
-    return {
-        "status": status,
-        "guides_fit": g_fitable,
-        "guides_all": g_all
-    }
 
-@router.get("/guides/{guide_id}/steps", response_model=dict)
-async def get_guide_steps(
-    guide_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Получение шагов конкретного гайда"""
-    status, steps = await miniapp_db_fcn.get_steps(guide_id=guide_id, session=session)
-    return {"status": status, "steps": steps}
+
 
 
 @router.post("/guides/{guide_id}/steps", response_model=IDResponse)

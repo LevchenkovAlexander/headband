@@ -139,3 +139,7 @@ async def change_state(master_id: uuid.UUID, guide_id: uuid.UUID, session: Async
     id = await GuideStatModel.get_by_guide_master(guide_id=guide_id, master_id=master_id, session=session)
     res = await GuideStatModel.toggle_action(stat_id=id, session=session)
     return res
+
+async def get_liked_guides(master_id: uuid.UUID, session: AsyncSession):
+    """Получить отмеченные мастером"""
+    return await GuideStatModel.get_by_master_liked(master_id=master_id, session=session)

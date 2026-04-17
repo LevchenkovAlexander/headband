@@ -10,7 +10,7 @@ from backend.database import miniapp_db_fcn, get_db_session
 
 
 
-"""Pydantic"""
+
 # Requests
 class DateRequest(BaseModel):
     master_id: uuid.UUID

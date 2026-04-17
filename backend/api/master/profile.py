@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import get_db_session, miniapp_db_fcn
 from backend.database.responses import StatusResponse
 
-"""Pydantic"""
+
 #Responses
 class BaseProfileResponse(StatusResponse):
     name: str
     tg: str
     phone: str
+    ambassador: bool
 
 
 #API
@@ -30,6 +31,7 @@ async def get_profile(
     return {"status": "success",
             "name":  master.full_name,
             "tg": master.username_tg,
-            "phone": master.phone}
+            "phone": master.phone,
+            "ambassador": master.ambassador}
 
 

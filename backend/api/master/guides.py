@@ -10,7 +10,7 @@ from backend.database.responses import StatusResponse
 from fastapi.responses import FileResponse
 
 
-"""Pydantic"""
+
 #Request
 class StepRequest(BaseModel):
     step_num: int

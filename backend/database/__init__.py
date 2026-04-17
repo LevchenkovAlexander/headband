@@ -198,6 +198,8 @@ class MasterModel(Base):
     user_link_id: Mapped[uuid.UUID]
     referrer_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)  # Кто пригласил
     referral_counted: Mapped[bool] = mapped_column(default=False)  # Засчитан ли реферал
+    ambassador: Mapped[bool] = mapped_column(default=False)
+
 
     # Relationships
     appointments: Mapped[List["AppointmentModel"]] = relationship(
@@ -701,6 +703,9 @@ class GuidesModel(Base):
     category: Mapped[str]
     author: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     guide_status: Mapped[int]
+    guide_created: Mapped[date]
+    guide_last_change: Mapped[date]
+    guide_approved: Mapped[date] = mapped_column(Date, nullable=True)
 
     steps_list: Mapped[List["GuideTextStepModel"]] = relationship(
         "GuideTextStepModel",
@@ -884,6 +889,12 @@ class GuideStatModel(Base):
     @classmethod
     async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID) -> List["GuideStatModel"]:
         query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+    @classmethod
+    async def get_by_master_liked(cls, session: AsyncSession, master_id: uuid.UUID) -> List["GuideStatModel"]:
+        query = select(cls).where(and_(cls.master_id == master_id, cls.action == 1))
         result = await session.execute(query)
         return list(result.scalars().all())
 
@@ -1139,6 +1150,7 @@ class MasterReferralModel(Base):
                                                  unique=True)
     invited_masters_count: Mapped[int] = mapped_column(BigInteger, default=0)
     invited_users_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    invited_active_users_count: Mapped[int] = mapped_column(BigInteger, default=0)
 
     # Relationships
     master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="referral_stats", uselist=False)
@@ -1177,6 +1189,15 @@ class MasterReferralModel(Base):
         return "success"
 
     @classmethod
+    async def increment_active_users(cls, session: AsyncSession, master_id: uuid.UUID) -> str:
+        """Увеличить счетчик приглашенных пользователей"""
+        query = update(cls).where(cls.master_id == master_id).values(
+            invited_active_users_count=cls.invited_active_users_count + 1
+        )
+        await session.execute(query)
+        return "success"
+
+    @classmethod
     async def get_stats(cls, session: AsyncSession, master_id: uuid.UUID) -> Optional[dict]:
         """Получить полную статистику рефералов"""
         referral = await cls.get_by_master_id(session=session, master_id=master_id)
@@ -1185,4 +1206,5 @@ class MasterReferralModel(Base):
         return {
             "invited_masters": referral.invited_masters_count,
             "invited_users": referral.invited_users_count,
+            "invited_active_users": referral.invited_active_users_count
         }

@@ -2,6 +2,7 @@ from multiprocessing import Process
 
 from dotenv import load_dotenv
 
+from backend.api.master.profile_endpoints import personal
 
 load_dotenv()
 from backend.api.master import guides, profile, schedule, welcome
@@ -9,6 +10,7 @@ from backend.api.master import guides, profile, schedule, welcome
 from backend import run_bot_process, run_server_process, app
 app.include_router(welcome.router)
 app.include_router(profile.router)
+app.include_router(personal.router)
 app.include_router(guides.router)
 app.include_router(schedule.router)
 
