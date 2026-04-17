@@ -11,9 +11,6 @@ from backend.database.responses import StatusResponse
 
 
 #Requests
-class DateRequest(BaseModel):
-    master_id: uuid.UUID
-    day: date
 
 
 #Responses
@@ -45,13 +42,14 @@ router = APIRouter(
 
 @router.get("/date", response_model=AppointmentListResponse)
 async def get_appointments_by_date(
-        request: DateRequest,
+        master_id: uuid.UUID,
+        day: date,
         session: AsyncSession = Depends(get_db_session)
 ):
     """Получение записей мастера на дату"""
     appointments, count, status, addresses, names = await miniapp_db_fcn.get_appointments_by_date(
-        master_id=request.master_id,
-        app_date=request.day,
+        master_id=master_id,
+        app_date=day,
         session=session
     )
 
@@ -71,13 +69,14 @@ async def get_appointments_by_date(
 
 @router.get("/week", response_model=WeekTimetableResponse)
 async def get_week_timetable(
-        request: DateRequest,
+        master_id: uuid.UUID,
+        day: date,
         session: AsyncSession = Depends(get_db_session)
 ):
     """Получение расписания мастера на неделю"""
     week_appointments, status = await miniapp_db_fcn.get_week_timetable(
-        master_id=request.master_id,
-        start_date=request.day,
+        master_id=master_id,
+        start_date=day,
         session=session
     )
     if status != "success":

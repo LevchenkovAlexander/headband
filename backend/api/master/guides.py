@@ -12,9 +12,6 @@ from fastapi.responses import FileResponse
 
 
 #Request
-class StepRequest(BaseModel):
-    step_num: int
-    guide_id: uuid.UUID
 
 
 class ViewRequest(BaseModel):
@@ -86,22 +83,24 @@ async def get_step_types(
             "step_types": resp,
             "total": total}
 
-@router.get("/step_text", response_model=StatusResponse)
+@router.get("/step_text", response_model=StepResponse)
 async def get_step_text(
-        request: StepRequest,
+        step_num: int,
+        guide_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
-    txt, title = await miniapp_db_fcn.get_text_from_step(step_num=request.step_num, guide_id=request.guide_id, session=session)
+    txt, title = await miniapp_db_fcn.get_text_from_step(step_num=step_num, guide_id=guide_id, session=session)
     return {"status": "success",
             "text": txt,
             "title": title}
 
 @router.get("/step_content")
 async def get_step_content(
-        request: StepRequest,
+        step_num: int,
+        guide_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
-    filepath = await miniapp_db_fcn.get_content_from_step(step_num=request.step_num, guide_id=request.guide_id, session=session)
+    filepath = await miniapp_db_fcn.get_content_from_step(step_num=step_num, guide_id=guide_id, session=session)
     return FileResponse(filepath)
 
 @router.post("/view", response_model=StatusResponse)

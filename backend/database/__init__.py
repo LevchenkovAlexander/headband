@@ -8,9 +8,11 @@ from dotenv import load_dotenv
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey, select, update, BigInteger, String, Date, text, delete, and_, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, selectinload
 from datetime import time, date
 from sqlalchemy import inspect
+
+
 
 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 load_dotenv()
@@ -27,7 +29,7 @@ AsyncSessionLocal = async_sessionmaker(
 async def setup_database():
     try:
         async with engine.begin() as conn:
-            '''tables_result = await conn.execute(
+            tables_result = await conn.execute(
                 text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
             )
             tables = [row[0] for row in tables_result.fetchall()]
@@ -39,7 +41,7 @@ async def setup_database():
                     await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
                     logging.info(f"Таблица {table} удалена")
                 except Exception as e:
-                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")'''
+                    logging.warning(f"Ошибка при удалении таблицы {table}: {e}")
 
             await conn.run_sync(Base.metadata.create_all)
 
@@ -686,13 +688,13 @@ class AppointmentModel(Base):
 
     @classmethod
     async def confirm(cls, session: AsyncSession, id: uuid.UUID):
-        query = update(cls).where(cls.id ==id).values(status=AppointmentStatus.CONFIRMED)
+        query = update(cls).where(cls.id ==id).values(status=AppointmentStatus.CONFIRMED.value)
         await session.execute(query)
         return "success"
 
     @classmethod
     async def cancel(cls, session: AsyncSession, id: uuid.UUID):
-        query = update(cls).where(cls.id == id).values(status=AppointmentStatus.CANCELLED)
+        query = update(cls).where(cls.id == id).values(status=AppointmentStatus.CANCELLED.value)
         await session.execute(query)
         return "success"
 
@@ -728,20 +730,43 @@ class GuidesModel(Base):
 
     @classmethod
     async def get_all(cls, session: AsyncSession):
-        query = select(cls).where(cls.guide_status == GuideStatus.CONFIRMED).order_by(cls.name)
+        query = select(cls).where(cls.guide_status == GuideStatus.CONFIRMED.value)
         result = await session.execute(query)
         return result.scalars().all()
 
     @classmethod
     async def get_by_categories(cls, categories: List[str], session: AsyncSession):
-        query = select(cls).where(cls.category.in_(categories), cls.guide_status == GuideStatus.CONFIRMED).order_by(cls.name)
+        query = select(cls).where(cls.category.in_(categories), cls.guide_status == GuideStatus.CONFIRMED.value)
         result = await session.execute(query)
         return result.scalars().all()
 
+    @classmethod
+    async def preupload_by_master(cls, master_id: uuid.UUID, session: AsyncSession):
+        stmt_master_guides = (
+            select(cls)
+            .where(cls.author == master_id)
+            .options(
+                selectinload(cls.guide_stats),
+                selectinload(cls.video_steps_list)
+            )
+        )
+        result = await session.execute(stmt_master_guides)
+        return result.scalars().all()
+    @classmethod
+    async def get_by_author(cls, author_id: uuid.UUID, session: AsyncSession)->List["GuidesModel"]:
+        query = select(cls).where(cls.author == author_id)
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+    @classmethod
+    async def get_by_id(cls, guide_id: uuid.UUID, session: AsyncSession):
+        query = select(cls).where(cls.id == guide_id)
+        result = await session.execute(query)
+        return result.scalars().first()
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
-        data["guide_status"] = GuideStatus.PENDING
+        data["guide_status"] = GuideStatus.PENDING.value
         guide = cls(**data)
         session.add(guide)
         await session.flush()
@@ -749,10 +774,20 @@ class GuidesModel(Base):
 
     @classmethod
     async def update(cls, session: AsyncSession, id: uuid.UUID, author: uuid.UUID, update_data: dict):
-        update_data["guide_status"] = GuideStatus.PENDING
+        update_data["guide_status"] = GuideStatus.PENDING.value
         query = update(cls).where(cls.id ==id, cls.author == author).values(**update_data)
         await session.execute(query)
         return "success"
+
+    @classmethod
+    async def get_pending_guides(cls, session: AsyncSession):
+        stmt_pending = (
+            select(cls)
+            .where(cls.guide_status == GuideStatus.PENDING.value)
+            .options(selectinload(cls.video_steps_list))
+        )
+        result = await session.execute(stmt_pending)
+        return result.scalars().all()
 
 
 class GuideTextStepModel(Base):
@@ -768,6 +803,7 @@ class GuideTextStepModel(Base):
     async def create(cls, session: AsyncSession, data: dict):
         step = cls(**data)
         session.add(step)
+        await session.flush()
         return step.id
 
     @classmethod
@@ -823,7 +859,7 @@ class GuideVideoStepModel(Base):
 
     @classmethod
     async def get_by_num_id(cls, session: AsyncSession, step_num: int, guide_id: uuid.UUID):
-        query = select(cls.description).where(and_(cls.guide_id == guide_id, cls.step_num == step_num))
+        query = select(cls).where(and_(cls.guide_id == guide_id, cls.step_num == step_num))
         result = await session.execute(query)
         return result.scalars().first()
 
@@ -860,6 +896,7 @@ class GuideStatModel(Base):
         """Создание записи статистики"""
         stat = cls(**data)
         session.add(stat)
+        await session.flush()
         return stat.id
 
     @classmethod
@@ -893,7 +930,7 @@ class GuideStatModel(Base):
         return list(result.scalars().all())
 
     @classmethod
-    async def get_by_master_liked(cls, session: AsyncSession, master_id: uuid.UUID) -> List["GuideStatModel"]:
+    async def get_by_master_liked(cls, session: AsyncSession, master_id: uuid.UUID)->List["GuideStatModel"]:
         query = select(cls).where(and_(cls.master_id == master_id, cls.action == 1))
         result = await session.execute(query)
         return list(result.scalars().all())
@@ -902,10 +939,7 @@ class GuideStatModel(Base):
     async def check_like(cls, session: AsyncSession, master_id: uuid.UUID, guide_id: uuid.UUID):
         query = select(cls).where(and_(cls.guide_id==guide_id, cls.master_id==master_id, cls.action==1))
         result = await session.execute(query)
-        if result:
-            return True
-        else:
-            return False
+        return result.scalars().first() is not None
 
     @classmethod
     async def get_guide_stats(cls, session: AsyncSession, guide_id: uuid.UUID) -> dict:
@@ -944,6 +978,20 @@ class GuideStatModel(Base):
         obj.action = 1 - obj.action  # переключение
         await session.flush()  # отправляем изменение в БД без фиксации транзакции
         return obj.action
+
+    @classmethod
+    async def preupload_liked(cls, session: AsyncSession, master_id: uuid.UUID):
+        stmt_liked_stats = (
+            select(cls)
+            .where(and_(cls.master_id == master_id, cls.action == 1))
+            .options(
+                selectinload(cls.guide).selectinload(GuidesModel.guide_stats),
+                selectinload(cls.guide).selectinload(GuidesModel.video_steps_list)
+            )
+        )
+        result = await session.execute(stmt_liked_stats)
+        liked_stats = result.scalars().all()
+        return [stat.guide for stat in liked_stats]
 
 class EarningsModel(Base):
     __tablename__ = "earnings"

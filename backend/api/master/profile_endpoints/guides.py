@@ -17,13 +17,14 @@ from backend.database.responses import StatusResponse
 class BaseGuideResponse(BaseModel):
     name: str
     category: str
+    guide_type: int
+
+class StatGuideResponse(BaseGuideResponse):
     views: int
     likes: int
     like: bool
-    guide_type: int
 
-
-class MyGuidesResponse(BaseGuideResponse):
+class MyGuidesResponse(StatGuideResponse):
     created: date
     changed: date
     approved: date
@@ -31,7 +32,7 @@ class MyGuidesResponse(BaseGuideResponse):
 
 class GuidesPageResponse(StatusResponse):
     my_guides: List[MyGuidesResponse]
-    liked_guides: List[BaseGuideResponse]
+    liked_guides: List[StatGuideResponse]
     approve_guides: Optional[List[BaseGuideResponse]]
 
 
@@ -47,7 +48,70 @@ async def get_guides_page(
         session: AsyncSession = Depends(get_db_session)
 ):
     master = await miniapp_db_fcn.get_master(master_id=master_id, session=session)
-    liked_guides =  await miniapp_db_fcn.get_liked_guides(master_id=master_id, session=session)
-    #TODO доделать вывод гайдов
-    master_guides = await miniapp_db_fcn
+
+    master_guides, liked_guides = miniapp_db_fcn.preuploaded_data(master_id=master_id, session=session)
+
+    my_guides_resp = []
+    for guide in master_guides:
+        likes = sum(1 for stat in guide.guide_stats if stat.action == 1)
+        views = sum(1 for stat in guide.guide_stats if stat.action == 0)
+
+        liked_by_me = any(stat.master_id == master_id and stat.action == 1 for stat in guide.guide_stats)
+
+        guide_type = 1 if guide.video_steps_list else 0
+
+        my_guides_resp.append({
+            "name": guide.name,
+            "category": guide.category,
+            "views": views,
+            "likes": likes,
+            "like": liked_by_me,
+            "guide_type": guide_type,
+            "created": guide.guide_created,
+            "changed": guide.guide_last_change,
+            "approved": guide.guide_approved,
+        })
+
+
+    liked_guides_resp = []
+    for guide in liked_guides:
+        likes = sum(1 for stat in guide.guide_stats if stat.action == 1)
+        views = sum(1 for stat in guide.guide_stats if stat.action == 0)
+        guide_type = 1 if guide.video_steps_list else 0
+
+        liked_guides_resp.append({
+            "name": guide.name,
+            "category": guide.category,
+            "views": views,
+            "likes": likes,
+            "like": True,   # мы загружали только лайкнутые
+            "guide_type": guide_type,
+            "created": guide.guide_created,
+            "changed": guide.guide_last_change,
+            "approved": guide.guide_approved,
+        })
+
+    # Если мастер амбассадор – добавляем гайды, ожидающие подтверждения
     if master.ambassador:
+        pending_guides = await miniapp_db_fcn.pending_guides(session=session)
+        amb_resp = []
+        for guide in pending_guides:
+            guide_type = 1 if guide.video_steps_list else 0
+            amb_resp.append({
+                "name": guide.name,
+                "category": guide.category,
+                "guide_type": guide_type,
+            })
+        return {
+            "status": "success",
+            "my_guides": my_guides_resp,
+            "liked_guides": liked_guides_resp,
+            "approve_guides": amb_resp,
+        }
+
+    return {
+        "status": "success",
+        "my_guides": my_guides_resp,
+        "liked_guides": liked_guides_resp,
+    }
+

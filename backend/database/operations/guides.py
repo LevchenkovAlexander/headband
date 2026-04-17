@@ -143,3 +143,33 @@ async def change_state(master_id: uuid.UUID, guide_id: uuid.UUID, session: Async
 async def get_liked_guides(master_id: uuid.UUID, session: AsyncSession):
     """Получить отмеченные мастером"""
     return await GuideStatModel.get_by_master_liked(master_id=master_id, session=session)
+
+async def get_author_guides(master_id: uuid.UUID, session: AsyncSession):
+    """Получить гайды мастера"""
+    return await GuidesModel.get_by_author(author_id=master_id, session=session)
+
+async def get_guide_type(guide_id: uuid.UUID, session: AsyncSession):
+    """Получение типов гайдов"""
+    status, step_video = await get_video_steps(guide_id=guide_id, session=session)
+    if len(step_video) == 0:
+        return 0
+    else:
+        return 1
+
+async def get_stats(guide_id: uuid.UUID, session: AsyncSession):
+    """Получение статистики гайда"""
+    return await GuideStatModel.get_guide_stats(guide_id=guide_id, session=session)
+
+async def get_guide(guide_id: uuid.UUID, session: AsyncSession):
+    """Получение гайда"""
+    return await GuidesModel.get_by_id(guide_id=guide_id, session=session)
+
+async def check_like(guide_id: uuid.UUID, master_id: uuid.UUID, session: AsyncSession):
+    return await GuideStatModel.check_like(guide_id=guide_id, master_id=master_id, session=session)
+
+async def preuploaded_data(session: AsyncSession, master_id: uuid.UUID):
+    return await GuidesModel.preupload_by_master(master_id=master_id, session=session), await GuideStatModel.preupload_liked(master_id=master_id, session=session)
+
+async def pending_guides(session: AsyncSession):
+    return await GuidesModel.get_pending_guides(session=session)
+
