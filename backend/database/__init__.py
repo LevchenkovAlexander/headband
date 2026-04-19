@@ -11,6 +11,14 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, selectinload
 from datetime import time, date
 from sqlalchemy import inspect
+import os
+
+from pathlib import Path
+from fastapi import UploadFile, HTTPException
+
+
+
+
 
 
 
@@ -29,7 +37,7 @@ AsyncSessionLocal = async_sessionmaker(
 async def setup_database():
     try:
         async with engine.begin() as conn:
-            tables_result = await conn.execute(
+            """tables_result = await conn.execute(
                 text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
             )
             tables = [row[0] for row in tables_result.fetchall()]
@@ -43,7 +51,7 @@ async def setup_database():
                 except Exception as e:
                     logging.warning(f"Ошибка при удалении таблицы {table}: {e}")
 
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(Base.metadata.create_all)"""
 
             tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
             logging.info(f"Таблицы в базе данных: {tables}")
@@ -773,9 +781,9 @@ class GuidesModel(Base):
         return guide.id
 
     @classmethod
-    async def update(cls, session: AsyncSession, id: uuid.UUID, author: uuid.UUID, update_data: dict):
+    async def update(cls, session: AsyncSession, id: uuid.UUID, update_data: dict):
         update_data["guide_status"] = GuideStatus.PENDING.value
-        query = update(cls).where(cls.id ==id, cls.author == author).values(**update_data)
+        query = update(cls).where(cls.id ==id).values(**update_data)
         await session.execute(query)
         return "success"
 
@@ -789,6 +797,25 @@ class GuidesModel(Base):
         result = await session.execute(stmt_pending)
         return result.scalars().all()
 
+    @classmethod
+    async def change_status(cls, session: AsyncSession, guide_id: uuid.UUID, state: int):
+        update_data = {}
+        if state == 0:
+            update_data["guide_status"] = GuideStatus.DENIED.value
+        else:
+            update_data["guide_status"] = GuideStatus.CONFIRMED.value
+            update_data["guide_approved"] = date.today()
+        query = update(cls).where(cls.id == guide_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, guide_id: uuid.UUID):
+        obj = await session.get(cls, guide_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such guide"
 
 class GuideTextStepModel(Base):
     __tablename__ = "guide_text_steps"
@@ -800,11 +827,12 @@ class GuideTextStepModel(Base):
     guide: Mapped["GuidesModel"] = relationship("GuidesModel", back_populates="steps_list")
 
     @classmethod
-    async def create(cls, session: AsyncSession, data: dict):
-        step = cls(**data)
-        session.add(step)
+    async def create(cls, session: AsyncSession, data: List[dict]):
+        for step in data:
+            s = cls(**step)
+            session.add(s)
         await session.flush()
-        return step.id
+        return "success"
 
     @classmethod
     async def get_by_guide_id(cls, session: AsyncSession, guide_id: uuid.UUID):
@@ -839,7 +867,7 @@ class GuideVideoStepModel(Base):
     guide_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("guides.id", ondelete="CASCADE"))
     step_num: Mapped[int]
     video_name: Mapped[str]
-    video_file_path: Mapped[str]
+    video_file_path: Mapped[str] = mapped_column(String, nullable=True)
     description: Mapped[str] = mapped_column(String, nullable=True)
 
     guide: Mapped["GuidesModel"] = relationship("GuidesModel", back_populates="video_steps_list")
@@ -855,7 +883,7 @@ class GuideVideoStepModel(Base):
     async def get_by_guide_id(cls, session: AsyncSession, guide_id: uuid.UUID):
         query = select(cls).where(cls.guide_id == guide_id).order_by(cls.step_num)
         result = await session.execute(query)
-        return result.scalars().all()
+        return result.scalars().first()
 
     @classmethod
     async def get_by_num_id(cls, session: AsyncSession, step_num: int, guide_id: uuid.UUID):

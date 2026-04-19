@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -33,7 +34,11 @@ app = FastAPI(
     ]
 )
 
+UPLOAD_DIR = Path("/var/uploads/videos")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
 

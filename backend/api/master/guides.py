@@ -40,9 +40,16 @@ class StepInfoResponse(StatusResponse):
     total: int
 
 
-class StepResponse(StatusResponse):
+class StepResponse(BaseModel):
     text: str
-    title: str
+    step_num: int
+
+class VideoResponse(StatusResponse):
+    video_name: str
+    description: str
+
+class GuideResponse(StatusResponse):
+    steps: List[StepResponse]
 
 
 """API"""
@@ -84,23 +91,27 @@ async def get_step_types(
             "total": total}
 
 @router.get("/step_text", response_model=StepResponse)
-async def get_step_text(
-        step_num: int,
+async def get_steps_text(
         guide_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
-    txt, title = await miniapp_db_fcn.get_text_from_step(step_num=step_num, guide_id=guide_id, session=session)
+    status, steps = await miniapp_db_fcn.get_steps(guide_id=guide_id, session=session)
     return {"status": "success",
-            "text": txt,
-            "title": title}
+            "steps": steps}
+
+@router.get("/step_video", response_model=VideoResponse)
+async def get_steps_text(
+        guide_id: uuid.UUID,
+        session: AsyncSession = Depends(get_db_session)
+):
+    return await miniapp_db_fcn.get_video_steps(guide_id=guide_id, session=session)
 
 @router.get("/step_content")
 async def get_step_content(
-        step_num: int,
         guide_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
-    filepath = await miniapp_db_fcn.get_content_from_step(step_num=step_num, guide_id=guide_id, session=session)
+    filepath = await miniapp_db_fcn.get_content_from_step(guide_id=guide_id, session=session)
     return FileResponse(filepath)
 
 @router.post("/view", response_model=StatusResponse)
