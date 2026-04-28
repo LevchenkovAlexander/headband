@@ -16,9 +16,6 @@ class IDResponse(StatusResponse):
 
 
 
-
-
-
 class PossibleTimesResponse(BaseModel):
     status: str
     times: List[time]
@@ -94,18 +91,10 @@ class CategoriesResponse(BaseModel):
     categories: List[CategoryBaseResponse]
 
 
-class PriceBaseResponse(BaseModel):
-    id: UUID
-    name: str
-    price: int
-    category: str
-    approximate_time: int  # минуты
-    master_id: UUID
 
 
-class PriceListResponse(BaseModel):
-    status: str
-    prices: List[PriceBaseResponse]
+
+
 
 
 class AdminInfoResponse(BaseModel):

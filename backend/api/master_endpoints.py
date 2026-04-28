@@ -30,75 +30,6 @@ router = APIRouter(
 
 
 
-
-
-
-
-
-
-
-@router.post("/guides/{guide_id}/steps", response_model=IDResponse)
-async def create_guide_step(
-    guide_id: uuid.UUID,
-    request: StepCreateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Создание шага для гайда"""
-    res = await miniapp_db_fcn.create_step(
-        guide_id=guide_id,
-        step_data=request.model_dump(),
-        session=session
-    )
-    return res
-
-@router.patch("/guides/steps/", response_model=StatusResponse)
-async def update_guide_step(
-    request: StepUpdateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Обновление шага гайда (можно передавать только изменённые поля)"""
-    res = await miniapp_db_fcn.update_step(
-        step_id=request.step_id,
-        update_data=request.model_dump(exclude_unset=True),
-        session=session
-    )
-    return res
-
-@router.delete("/guides/steps/{step_id}", response_model=StatusResponse)
-async def delete_guide_step(
-    step_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Удаление шага гайда"""
-    res = await miniapp_db_fcn.delete_step(step_id=step_id, session=session)
-    return res
-
-@router.post("/guides", response_model=IDResponse)
-async def create_guide(
-    request: GuideCreateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    try:
-        guide_id = await miniapp_db_fcn.create_guide(
-            session=session,
-            request=request
-        )
-        return {"status": "success", "id": guide_id}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.patch("/guides", response_model=StatusResponse)
-async def update_guide(
-    request: GuideUpdateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    status = miniapp_db_fcn.update_guide(session=session,
-        update_data=request)
-    if status != "success":
-        raise HTTPException(status_code=404, detail=status)
-    return {"status": status}
-
-
 @router.get("/categories", response_model=dict)
 async def get_master_categories(
     master_id: uuid.UUID,
@@ -226,81 +157,13 @@ async def update_working_day(
     status = await miniapp_db_fcn.update_working_day(request=request, session=session)
     return {"status": status}
 
-@router.post("/upload_price_file/{master_id}")
-async def upload_file(master_id: uuid.UUID,
-        file: UploadFile = File(...),
-        session: AsyncSession = Depends(get_db_session)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(400, detail="Invalid file type")
 
-    file_extension = os.path.splitext(file.filename)[1]
-    safe_filename = f"image_{uuid.uuid4().hex}{file_extension}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
-    async with aiofiles.open(file_path, 'wb') as f:
-        while chunk := await file.read(1024 * 1024):  # читаем по 1 МБ
-            await f.write(chunk)
 
-    data = await pricelist.get_price_list(file_path)
-    res = await miniapp_db_fcn.create_pricelist(data=data, master_id=master_id, session=session)
-    return {"status": "success",
-            "prices": res}
 
-@router.post("/prices", response_model=IDResponse)
-async def create_price(
-    request: PriceCreateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Создание позиции прайса"""
-    status, price_id = await miniapp_db_fcn.create_price_position(price_position=request,
-        session=session
-    )
-    if status != "success":
-        raise HTTPException(status_code=400, detail=status)
-    return {"status": status, "id": price_id}
 
-@router.patch("/prices", response_model=StatusResponse)
-async def update_price(
-    request: PriceUpdateRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Обновление позиции прайса"""
-    status = await miniapp_db_fcn.update_price(
-        update_data=request,
-        session=session
-    )
-    if status != "success":
-        raise HTTPException(status_code=400, detail=status)
-    return {"status": status}
 
-@router.delete("/prices/{price_id}", response_model=StatusResponse)
-async def delete_price(
-    price_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Удаление позиции прайса"""
-    status = await miniapp_db_fcn.delete_price(
-        price_id=price_id,
-        session=session
-    )
-    if status != "success":
-        raise HTTPException(status_code=404, detail=status)
-    return {"status": status}
 
-@router.get("/prices", response_model=PriceListResponse)
-async def get_master_prices(
-    master_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Получение всех позиций прайса мастера"""
-    prices = await miniapp_db_fcn.get_prices_by_master(
-        master_id=master_id,
-        session=session
-    )
-    return {
-        "status": "success",
-        "prices": prices,
-    }
 
 @router.get("/prices/category", response_model=PriceListResponse)
 async def get_prices_by_category(

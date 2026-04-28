@@ -6,7 +6,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 
-from backend.telegram_bot import bot_main
+#from backend.telegram_bot import bot_main
 
 import database as db
 
@@ -36,6 +36,8 @@ app = FastAPI(
 
 UPLOAD_DIR = Path("/var/uploads/guides")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TEMPS_DIR = Path("/var/uploads/temps")
+TEMPS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 ALLOWED_VID_EXT = {".mp4", ".mov", ".avi", ".webm", ".mkv"}

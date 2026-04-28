@@ -89,13 +89,7 @@ class OrganizationUpdateRequest(BaseModel):
     day_off: Optional[str] = None
     admin_id: uuid.UUID
 
-class PriceUpdateRequest(BaseModel):
-    id: uuid.UUID
-    master_id: uuid.UUID
-    name: Optional[str] = None
-    price: Optional[int] = None
-    category_id: Optional[uuid.UUID] = None
-    approximate_time: Optional[time] = None
+
 
 
 class PriceCreateRequest(BaseModel):
