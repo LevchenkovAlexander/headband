@@ -4,7 +4,6 @@ from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from backend.database.requests import WeekTemplate
 
 
 class StatusResponse(BaseModel):
@@ -121,20 +120,9 @@ class WorkingDaysListResponse(BaseModel):
 
 
 
-class WeekTemplateResp(BaseModel):
-    id: UUID
-    weekday: int
-    start_time: time
-    end_time: time
-    address_id: uuid.UUID
-    address: Optional[str] = None
 
-class WeekTemplateResponse(StatusResponse):
-    templates: List[WeekTemplateResp]
 
-class WeekTemplateListResponse(BaseModel):
-    status: str
-    templates: List[WeekTemplateResponse]
+
 
 
 class MasterAbsenceResponse(BaseModel):
@@ -148,28 +136,11 @@ class MasterAbsencesListResponse(BaseModel):
     status: str
     absences: List[MasterAbsenceResponse]
 
-class AddressBaseResponse(BaseModel):
-    id: UUID
-    address: str
-    master_id: UUID
 
-class AddressListResponse(BaseModel):
-    status: str
-    addresses: List[AddressBaseResponse]
 
-class AbsenceCreateResponse(BaseModel):
-    status: str
-    absence_id: uuid.UUID
-    cancelled_appointments: List[str] = Field(default_factory=list)
 
-class AbsenceResp(BaseModel):
-    id: uuid.UUID
-    start_date: date
-    end_date: date
-    reason: str
 
-class AbsenceListResponse(StatusResponse):
-    absences: Optional[List[AbsenceResp]] = List[dict]
+
 
 class PriceListResponseFile():
     status: str

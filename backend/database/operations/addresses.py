@@ -35,6 +35,13 @@ async def get_addresses_by_master(
         for addr in addresses
     ]
 
+async def get_address_by_id(
+    id: uuid.UUID,
+    session: AsyncSession
+):
+    """Получение всех адресов мастера"""
+    address = await AddressModel.get_by_id(session=session, address_id=id)
+    return address.address
 
 async def delete_address(
     address_id: uuid.UUID,

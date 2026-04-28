@@ -136,53 +136,19 @@ class MastersPageRequest(BaseModel):
     category: int
     filter: Optional[List[uuid.UUID]] = None
 
-class AddressCreateRequest(BaseModel):
-    master_id: uuid.UUID
-    address: str
 
-class AddressUpdateRequest(BaseModel):
-    id: uuid.UUID
-    address: str
 
-class WeekTemplate(BaseModel):
-    weekday: int
-    start_time: time
-    end_time: time
-    address_id: uuid.UUID
 
-class TemplateCreateRequest(BaseModel):
-    master_id: uuid.UUID
-    days: List[WeekTemplate]
 
-class TemplateUpdateRequest(BaseModel):
-    master_id: uuid.UUID
-    weekday: int
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    address_id: Optional[uuid.UUID] = None
 
-class WorkingDayUpdateRequest(BaseModel):
-    master_id: uuid.UUID
-    day_date: date
-    start_time: time
-    end_time: time
-    address_id: uuid.UUID
+
 
 class CategoryCreateRequest(BaseModel):
     name: str
 
-class AbsenceCreateRequest(BaseModel):
-    master_id: uuid.UUID
-    start_date: date
-    end_date: date
-    reason: Optional[str] = None
 
-class AbsenceUpdateRequest(BaseModel):
-    absence_id: uuid.UUID
-    master_id: uuid.UUID
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    reason: Optional[str] = None
+
+
 
 class GuideCreateRequest(BaseModel):
     name: str

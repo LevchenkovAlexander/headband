@@ -5,10 +5,10 @@ from typing import Optional, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.master.profile_endpoints.schedule import WorkingDayUpdateRequest
 from backend.database import WorkingDayModel, WeekTemplateModel, MasterAbsenceModel, AddressModel
 from backend.database.operations.utils import _cancel_conflicting_appointments_for_date, \
     _cancel_appointments_in_date_range
-from backend.database.requests import WeekTemplate, TemplateUpdateRequest, WorkingDayUpdateRequest
 
 
 async def create_working_day(
@@ -81,7 +81,7 @@ async def get_absences_by_master(
     return res, status
 
 
-async def set_week_template_full(master_id: uuid.UUID, templates: List[WeekTemplate], session: AsyncSession) -> str:
+async def set_week_template_full(master_id: uuid.UUID, templates: List, session: AsyncSession) -> str:
     """Установка шаблона на всю неделю"""
     for template_data in templates:
         await set_weekday_template(master_id=master_id,
@@ -116,7 +116,7 @@ async def get_week_template_by_master(master_id: uuid.UUID, session: AsyncSessio
     return response
 
 
-async def update_week_template(templates: List[TemplateUpdateRequest], session: AsyncSession):
+async def update_week_template(templates: List, session: AsyncSession):
     """Обновление шаблона на неделю"""
     try:
         for req in templates:
@@ -155,6 +155,11 @@ async def update_week_template(templates: List[TemplateUpdateRequest], session: 
 async def delete_day(id: uuid.UUID, weekday: int, session: AsyncSession):
     return await WeekTemplateModel.delete_by_master_id_weekday(session=session, master_id=id, weekday=weekday)
 
+async def get_day(master_id: uuid.UUID, day: date, session: AsyncSession):
+    resp = await WorkingDayModel.get_by_master_and_date(master_id=master_id, day_date=day, session=session)
+    if resp is None:
+        resp = await WeekTemplateModel.get_by_master_and_weekday(master_id=master_id, weekday=day.weekday(), session=session)
+    return resp
 
 async def update_working_day(
         request: WorkingDayUpdateRequest,
