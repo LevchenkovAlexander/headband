@@ -10,8 +10,6 @@ from backend.database import miniapp_db_fcn, get_db_session
 from backend.database.responses import StatusResponse
 
 
-#Requests
-
 
 #Responses
 class AppointmentResponse(BaseModel):

@@ -232,45 +232,4 @@ async def delete_prepayment(
     return {"status": status}
 
 
-@router.get("/notifications", response_model=MasterNotificationGetResponse)
-async def get_master_notifications(
-        master_id: uuid.UUID,
-        session: AsyncSession = Depends(get_db_session)
-):
-    """Получение настроек уведомлений мастера"""
-    status, notification = await miniapp_db_fcn.get_master_notification(
-        master_id=master_id,
-        session=session
-    )
 
-    if status != "success":
-        raise HTTPException(status_code=404, detail=status)
-
-    return {
-        "status": status,
-        "notification": notification
-    }
-
-
-@router.patch("/notifications", response_model=StatusResponse)
-async def update_master_notification(
-        request: MasterNotificationUpdateRequest,
-        session: AsyncSession = Depends(get_db_session)
-):
-    """Обновление настроек уведомлений мастера (можно обновлять отдельные поля)"""
-    update_data = request.model_dump(exclude_unset=True)
-    update_data.pop("master_id", None)
-
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    status = await miniapp_db_fcn.update_master_notification(
-        master_id=request.master_id,
-        update_data=update_data,
-        session=session
-    )
-
-    if status != "success":
-        raise HTTPException(status_code=404, detail=status)
-
-    return {"status": status}

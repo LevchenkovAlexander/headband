@@ -193,13 +193,7 @@ class PrepayCheckRequest(BaseModel):
     master_id: uuid.UUID
     check_date: date
 
-class MasterNotificationUpdateRequest(BaseModel):
-    master_id: uuid.UUID
-    appointment_notification: Optional[bool] = None
-    appointment_cancel_notification: Optional[bool] = None
-    appointment_confirm_notification: Optional[bool] = None
-    guide_approved_notification: Optional[bool] = None
-    subscription_ending_notification: Optional[bool] = None
+
 
 
 
