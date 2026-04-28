@@ -1,11 +1,12 @@
 import uuid
+from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import miniapp_db_fcn, get_db_session
+from backend.database import miniapp_db_fcn, get_db_session, GuideTextStepImageModel
 from backend.database.responses import StatusResponse
 from fastapi.responses import FileResponse
 
@@ -41,6 +42,7 @@ class StepInfoResponse(StatusResponse):
 
 
 class StepResponse(BaseModel):
+    step_id: uuid.UUID
     text: str
     step_num: int
 
@@ -100,7 +102,7 @@ async def get_steps_text(
             "steps": steps}
 
 @router.get("/step_video", response_model=VideoResponse)
-async def get_steps_text(
+async def get_steps_video(
         guide_id: uuid.UUID,
         session: AsyncSession = Depends(get_db_session)
 ):
@@ -129,3 +131,44 @@ async def toggle_like(
 ):
     await miniapp_db_fcn.change_state(master_id=request.master_id, guide_id=request.guide_id, session=session)
     return {"status": "success"}
+
+@router.get("/steps/{step_id}/images", response_model=List[str])
+async def get_step_images(
+    step_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Получить список путей ко всем изображениям шага"""
+    images = await GuideTextStepImageModel.get_by_step_id(session=session, step_id=step_id)
+    return [img.filepath for img in images]
+
+@router.get("/images/{image_id}")
+async def serve_image(
+    image_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    # 1. Получаем запись из БД
+    img_obj = await GuideTextStepImageModel.get_by_id(session=session, image_id=image_id)
+    if not img_obj:
+        raise HTTPException(404, "Изображение не найдено в базе данных")
+
+    file_path = Path(img_obj.filepath)
+
+    # 2. Проверяем существование файла на диске
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(404, "Файл изображения не найден на сервере")
+
+    # 3. Определяем MIME-тип по расширению
+    ext = file_path.suffix.lower()
+    mime_types = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".webp": "image/webp",
+        ".gif": "image/gif"
+    }
+    media_type = mime_types.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=media_type,
+        filename=file_path.name,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"}
+    )

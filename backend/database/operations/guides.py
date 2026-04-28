@@ -3,7 +3,8 @@ from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import MasterCategoryModel, GuidesModel, GuideTextStepModel, GuideVideoStepModel, GuideStatModel
+from backend.database import MasterCategoryModel, GuidesModel, GuideTextStepModel, GuideVideoStepModel, GuideStatModel, \
+    GuideTextStepImageModel
 
 
 async def get_guides(master_id: uuid.UUID, session: AsyncSession):
@@ -44,6 +45,7 @@ async def get_steps(guide_id: uuid.UUID, session: AsyncSession):
     """Получение шагов гайда по ID"""
     steps = await GuideTextStepModel.get_by_guide_id(guide_id=guide_id, session=session)
     steps_resp = [{
+        "step_id": s.id,
         "step_num": s.step_num,
         "text": s.text
     } for s in steps]
@@ -171,4 +173,10 @@ async def pending_guides(session: AsyncSession):
 async def change_status(session: AsyncSession, guide_id: uuid.UUID, state: int):
     res = await GuidesModel.change_status(session=session, guide_id=guide_id, state=state)
     return res
+
+async def add_image(session: AsyncSession, step_id: uuid.UUID, filepath: str):
+    await GuideTextStepImageModel.create(
+        session=session,
+        data={"step_id": step_id, "filepath": filepath}
+    )
 

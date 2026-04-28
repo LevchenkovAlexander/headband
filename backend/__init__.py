@@ -34,12 +34,12 @@ app = FastAPI(
     ]
 )
 
-UPLOAD_DIR = Path("/var/uploads/videos")
+UPLOAD_DIR = Path("/var/uploads/guides")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
-ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
-
+ALLOWED_VID_EXT = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+ALLOWED_IMG_EXT = {".jpg", ".jpeg", ".png"}
 logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',)
 
 

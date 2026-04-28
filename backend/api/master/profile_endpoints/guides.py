@@ -4,12 +4,12 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, BackgroundTasks, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend import ALLOWED_EXTENSIONS, UPLOAD_DIR, MAX_FILE_SIZE
-from backend.database import get_db_session, miniapp_db_fcn
+from backend import UPLOAD_DIR, MAX_FILE_SIZE, ALLOWED_IMG_EXT, ALLOWED_VID_EXT
+from backend.database import get_db_session, miniapp_db_fcn, GuideTextStepImageModel
 from backend.database.responses import StatusResponse
 
 
@@ -224,11 +224,11 @@ async def create_guide_video(
 async def upload_video(file: UploadFile = File(...)):
     original_name = file.filename
     ext = Path(original_name).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(400, f"Недопустимое расширение файла. Разрешены: {ALLOWED_EXTENSIONS}")
+    if ext not in ALLOWED_VID_EXT:
+        raise HTTPException(400, f"Недопустимое расширение файла. Разрешены: {ALLOWED_VID_EXT}")
 
     safe_filename = f"{uuid.uuid4().hex}{ext}"
-    file_path = UPLOAD_DIR / safe_filename
+    file_path = UPLOAD_DIR / "guide_videos" / safe_filename
 
     try:
         with open(file_path, "wb") as buffer:
@@ -290,4 +290,58 @@ async def delete(
         session: AsyncSession = Depends(get_db_session)
 ):
     status = await miniapp_db_fcn.delete_step(step_id=step_id, session=session)
+    return {"status": status}
+@router.post("/steps/{step_id}/upload-image", response_model=StatusResponse)
+async def upload_and_link_image(
+    step_id: uuid.UUID,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_db_session)
+):
+    original_name = file.filename or "image.jpg"
+    ext = Path(original_name).suffix.lower()
+    if ext not in ALLOWED_IMG_EXT:
+        raise HTTPException(400, f"Недопустимое расширение. Разрешены: {ALLOWED_IMG_EXT}")
+
+    safe_filename = f"{uuid.uuid4().hex}{ext}"
+    img_dir = UPLOAD_DIR / "guide_images"
+    img_dir.mkdir(exist_ok=True)
+    file_path = img_dir / safe_filename
+
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(500, f"Ошибка сохранения файла: {e}")
+
+    if file_path.stat().st_size > MAX_FILE_SIZE:
+        file_path.unlink()
+        raise HTTPException(400, f"Файл превышает максимальный размер {MAX_FILE_SIZE // (1024**2)} МБ")
+
+    filepath_str = str(file_path.absolute())
+    try:
+        await miniapp_db_fcn.add_image(session=session, step_id=step_id, filepath=filepath_str)
+    except Exception as e:
+        # Откат: если запись в БД не прошла, удаляем файл
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(500, f"Ошибка записи в БД: {e}")
+    return {"status": "success"}
+
+
+
+@router.delete("/steps/images/{image_id}", response_model=StatusResponse)
+async def delete_step_image(
+    image_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Удалить изображение из БД и с диска"""
+    img_obj = await GuideTextStepImageModel.get_by_id(session=session, image_id=image_id)
+    if not img_obj:
+        return {"status": "no such image"}
+
+    try:
+        Path(img_obj.filepath).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    status = await GuideTextStepImageModel.delete(session=session, image_id=image_id)
     return {"status": status}
