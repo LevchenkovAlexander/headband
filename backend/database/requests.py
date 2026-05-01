@@ -163,31 +163,15 @@ class GuideUpdateRequest(BaseModel):
     category: Optional[str] = None
     steps: Optional[str] = None
 
-class EarningCreateRequest(BaseModel):
-    master_id: uuid.UUID
-    appointment_id: uuid.UUID
 
-class EarningDateRangeRequest(BaseModel):
-    master_id: uuid.UUID
-    start_date: date
-    end_date: date
 
-class EarningUpdateRequest(BaseModel):
-    id: uuid.UUID
-    price: Optional[int] = None
-    date: Optional[date] = None
 
-class PrepayCreateRequest(BaseModel):
-    master_id: uuid.UUID
-    percent: int
-    start_date: date
-    end_date: date
 
-class PrepayUpdateRequest(BaseModel):
-    id: uuid.UUID
-    percent: Optional[int] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
+
+
+
+
+
 
 class PrepayCheckRequest(BaseModel):
     master_id: uuid.UUID

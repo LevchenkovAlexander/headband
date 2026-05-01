@@ -6,6 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import PriceModel, CategoryModel
 
 
+async def get_price_by_id(
+        price_id: uuid.UUID,
+        session: AsyncSession
+):
+    return await PriceModel.get_by_id(session=session, price_id=price_id)
 
 async def create_price_position(
     price: dict,

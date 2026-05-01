@@ -172,6 +172,11 @@ async def get_week_timetable(
 
     return week_appointments, "success"
 
+async def get_on_confirm(
+        master_id: uuid.UUID,
+        session: AsyncSession
+):
+    return await AppointmentModel.get_by_master_confirmation(master_id=master_id, session=session)
 
 #TODO при настройке пользователя
 '''async def get_appointments_by_user(

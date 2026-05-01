@@ -3,7 +3,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import PrepayModel
+from backend.database import PrepayModel, CardModel
 
 
 async def create_prepayment(
@@ -81,3 +81,27 @@ async def delete_prepayment(
 ):
     """Удаление периода предоплаты"""
     return await PrepayModel.delete(session=session, prepay_id=prepay_id)
+
+async def create_card(
+        master_id: uuid.UUID,
+        last_digits: int,
+        amount_digits: int,
+        session: AsyncSession
+):
+    return await CardModel.create(session=session, data={"last_digits": last_digits,
+                                                         "amount_digits": amount_digits,
+                                                         "master_id": master_id})
+
+async def get_card(
+        master_id: uuid.UUID,
+        session: AsyncSession
+):
+    return await CardModel.get_by_master_id(master_id=master_id, session=session)
+
+async def update_card(
+        card_id: uuid.UUID,
+        update_data: dict,
+        session: AsyncSession
+):
+    """Обновление периода предоплаты"""
+    return await CardModel.update(session=session, card_id=card_id, update_data=update_data)

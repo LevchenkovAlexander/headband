@@ -146,31 +146,12 @@ class PriceListResponseFile():
     status: str
     prices: List[dict]
 
-class EarningBaseResponse(BaseModel):
-    id: UUID
-    price: int
-    date: date
-    master_id: UUID
 
-class EarningListResponse(BaseModel):
-    status: str
-    earnings: List[EarningBaseResponse]
-    total: int = 0  # общая сумма
 
-class PrepayBaseResponse(BaseModel):
-    id: UUID
-    percent: int
-    start_date: date
-    end_date: date
-    master_id: UUID
 
-class PrepayListResponse(BaseModel):
-    status: str
-    prepayments: List[PrepayBaseResponse]
 
-class PrepayActiveResponse(BaseModel):
-    status: str
-    prepay: Optional[PrepayBaseResponse] = None
+
+
 
 
 

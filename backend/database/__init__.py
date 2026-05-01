@@ -285,6 +285,12 @@ class MasterModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+    cards: Mapped[List["CardModel"]] = relationship(
+        "CardModel",
+        back_populates="master",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     @classmethod
     async def create(cls, session: AsyncSession, data: dict):
@@ -657,6 +663,12 @@ class AppointmentModel(Base):
     @classmethod
     async def get_by_master_and_date(cls, session: AsyncSession, master_id: uuid.UUID, app_date: date):
         query = select(cls).where(cls.master_id == master_id, cls.date == app_date).order_by(cls.start_time)
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def get_by_master_confirmation(cls, session: AsyncSession, master_id: uuid.UUID):
+        query = select(cls).where(cls.master_id == master_id, cls.status == AppointmentStatus.PENDING).order_by(cls.start_time)
         result = await session.execute(query)
         return result.scalars().all()
 
@@ -1331,3 +1343,47 @@ class MasterReferralModel(Base):
             "invited_users": referral.invited_users_count,
             "invited_active_users": referral.invited_active_users_count
         }
+
+class CardModel(Base):
+    __tablename__ = "cards"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    last_digits: Mapped[int]
+    amount_digits: Mapped[int]
+    master_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"))
+
+    # Relationships
+    master: Mapped["MasterModel"] = relationship("MasterModel", back_populates="cards")
+
+    @classmethod
+    async def create(cls, session: AsyncSession, data: dict):
+        card = cls(**data)
+        session.add(card)
+        await session.flush()
+        return card.id
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, card_id: uuid.UUID):
+        query = select(cls).where(cls.id == card_id)
+        result = await session.execute(query)
+        return result.scalars().first()
+
+    @classmethod
+    async def get_by_master_id(cls, session: AsyncSession, master_id: uuid.UUID):
+        query = select(cls).where(cls.master_id == master_id)
+        result = await session.execute(query)
+        return result.scalars().all()
+
+    @classmethod
+    async def update(cls, session: AsyncSession, card_id: uuid.UUID, update_data: dict) -> str:
+        query = update(cls).where(cls.id == card_id).values(**update_data)
+        await session.execute(query)
+        return "success"
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, card_id: uuid.UUID) -> str:
+        obj = await session.get(cls, card_id)
+        if obj:
+            await session.delete(obj)
+            return "success"
+        return "no such card"
